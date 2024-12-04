@@ -1,0 +1,10 @@
+﻿  main.cpp
+  Info: Boost.Config is older than your compiler version - probably nothing bad will happen - but you may wish to look for an update Boost version.  Define BOOST_CONFIG_SUPPRESS_OUTDATED_MESSAGE to suppress this message.
+  readFrom.vcxproj -> C:\Users\eduong\Documents\repos\tangible\oF\readFrom\bin\readFrom_debug.exe
+  
+  	                   2	C:\Users\eduong\Documents\of_v0.11.2_vs2017_release\libs\fmod\lib\vs\Win32\
+  	  *EXTRA File 		 6018560	C:\Users\eduong\Documents\repos\tangible\oF\readFrom\bin\FreeImage.dll
+  
+  	                   1	C:\Users\eduong\Documents\of_v0.11.2_vs2017_release\libs\FreeImage\lib\vs\Win32\
+  	  *EXTRA File 		 1544704	C:\Users\eduong\Documents\repos\tangible\oF\readFrom\bin\fmod.dll
+  	  *EXTRA File 		 1733120	C:\Users\eduong\Documents\repos\tangible\oF\readFrom\bin\fmodL.dll
