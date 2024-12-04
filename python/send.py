@@ -1,6 +1,6 @@
 import compas_rrc as rrc
 import os
-from undo.production_data import ProductionData
+from production_data import ProductionData
 import json
 import sys
 import roslibpy
@@ -8,7 +8,7 @@ import time
 
 HERE = os.path.dirname(__file__)
 DATA = os.path.abspath(os.path.join(HERE, '..', 'data'))
-file_name = DATA + "/"+ "20241104_robotA_10.json"
+file_name = DATA + "/" + "20241204_test.json"
 output_path = os.path.join(file_name + '_output.json')
 
 PRODUCTION_LOG_CONFIG = dict(
