@@ -3,6 +3,7 @@
 #include "ofMain.h"
 #include "FrameDrawer.h"
 #include "ofxGui.h"
+#include "ofxCsv.h"
 
 class ofApp : public ofBaseApp{
 
@@ -26,6 +27,7 @@ class ofApp : public ofBaseApp{
 		void gotMessage(ofMessage msg) override;
     
     private:
+        void loadPointsFromCsv(const std::string& filePath);
         FrameDrawer frameDrawer;
     
         // GUI
@@ -34,5 +36,8 @@ class ofApp : public ofBaseApp{
         ofParameter<float> pointRadius;
         ofParameter<float> lineThickness;
         ofParameter<ofColor> color;
+        ofParameter<float> translateX;
+        ofParameter<float> translateY;
+        ofParameter<float> scale;
 		
 };
