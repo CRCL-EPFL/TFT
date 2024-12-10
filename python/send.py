@@ -8,7 +8,7 @@ import time
 
 HERE = os.path.dirname(__file__)
 DATA = os.path.abspath(os.path.join(HERE, '..', 'data'))
-file_name = DATA + "/" + "20241204_test.json"
+file_name = DATA + "/" + "20241206_cut4.json"
 output_path = os.path.join(file_name + '_output.json')
 
 PRODUCTION_LOG_CONFIG = dict(
