@@ -9,7 +9,7 @@ K=np.array([[2113.8978121575183, 0.0, 1940.3860532394276], [0.0, 2111.3353714795
 D=np.array([[-0.03787467518808117], [0.0846315868116808], [-0.1264491080629783], [0.056945996640635654]])
 
 def undistort():
-    camera_index = 1  # Default camera. Change if needed (e.g., 1 for another camera)
+    camera_index = 0  # Default camera. Change if needed (e.g., 1 for another camera)
     cap = cv2.VideoCapture(camera_index, cv2.CAP_DSHOW)  # CAP_DSHOW for Windows, optional for others
 
     # Set resolution to 4K (3840x2160)

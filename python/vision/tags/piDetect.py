@@ -2,6 +2,8 @@ import cv2
 from dt_apriltags import Detector
 import numpy
 
+# Tag detection using DT-APRILTAGS on Pi - not working on Windows
+
 at_detector = Detector(families='tagStandard41h12',
                        nthreads=1,
                        quad_decimate=1.0,
@@ -52,4 +54,3 @@ while True:
 # Release the resources
 cap.release()
 cv2.destroyAllWindows()
-

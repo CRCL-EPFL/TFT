@@ -1,0 +1,116 @@
+import cv2 as cv
+from robotpy_apriltag import AprilTagDetector, AprilTagPoseEstimator
+import numpy as np
+import json
+from pythonosc import udp_client
+
+# FISHEYE CORRECTION
+DIM=(3840, 2160)
+
+K=np.array([[2113.8978121575183, 0.0, 1940.3860532394276], [0.0, 2111.3353714795057, 1078.7327869431792], [0.0, 0.0, 1.0]])
+D=np.array([[-0.03787467518808117], [0.0846315868116808], [-0.1264491080629783], [0.056945996640635654]])
+
+# Store map results
+map1, map2 = cv.fisheye.initUndistortRectifyMap(K, D, np.eye(3), K, DIM, cv.CV_16SC2)
+
+def undistort(img, map1, map2):    
+    undistorted_img = cv.remap(img, map1, map2, interpolation=cv.INTER_LINEAR, borderMode=cv.BORDER_CONSTANT)    
+    
+    return undistorted_img
+
+cap = cv.VideoCapture(0, cv.CAP_DSHOW)
+
+width = 3840
+height = 2160
+
+ASPECT_RATIO = 16/10
+
+cap.set(cv.CAP_PROP_FRAME_WIDTH, width)
+cap.set(cv.CAP_PROP_FRAME_HEIGHT, height)
+
+input_points = np.float32([[1108, 658], [2618, 682], [1110, 1610], [2594, 1608]])
+
+map1, map2 = cv.fisheye.initUndistortRectifyMap(K, D, np.eye(3), K, DIM, cv.CV_16SC2)
+
+matrix = None
+
+detector = AprilTagDetector()
+# estimator = AprilTagPoseEstimator()
+detector.addFamily('tagStandard41h12')
+
+osc_client = udp_client.SimpleUDPClient("127.0.0.1", 12345)
+
+while True:
+    success, frame = cap.read()
+
+    # frame = cv.rotate(frame, cv.ROTATE_180)
+    frame = undistort(frame, map1, map2)
+    # Scale down to 1920x1080 for display
+    scaledFrame = cv.resize(frame, (1920, 1080))
+
+    outputWidth, outputHeight = 1510, 943
+
+    # Update converted points to match output dimensions
+    convertedPoints = np.float32([[0, 0], [outputWidth, 0], [0, outputHeight], [outputWidth, outputHeight]])
+    
+    matrix = cv.getPerspectiveTransform(input_points, convertedPoints)
+
+    transformedFrame = cv.warpPerspective(frame, matrix, (outputWidth, outputHeight))
+
+    grayFrame = cv.cvtColor(transformedFrame, cv.COLOR_BGR2GRAY)
+
+    tags = detector.detect(grayFrame)
+    # print(f"Type of tags: {type(tags)}")
+
+    allCorners = []
+
+    for i, tag in enumerate(tags):
+        corners = (0, 0, 0, 0, 0, 0, 0, 0)
+
+        colors = [
+            (0, 0, 255),    # Red
+            (0, 255, 0),    # Green
+            (255, 0, 0),    # Blue
+            (0, 255, 255)   # Yellow
+        ]
+
+        # print(f"Tag ID: {tag.getId()}")
+        # print(f"Tag center: {tag.getCenter()}")
+        # print(f"Tag corners: {tag.getCorners(corners)}")
+
+        tagId = tag.getId()
+        tagCenter = tag.getCenter()
+        corners = tag.getCorners(corners)
+
+        # Draw lines connecting the corners
+        cornersShaped = np.array(corners).reshape(-1, 2).astype(np.int32)
+        allCorners.append({
+            'tag_id': int(tagId),
+            'corners': cornersShaped.tolist(),
+            'center': [float(tagCenter.x), float(tagCenter.y)]
+        })
+
+        if allCorners:
+            # print("Sending OSC message:", json.dumps(allCorners, indent=2))
+            osc_client.send_message("/tags", json.dumps(allCorners))
+
+        # Draw lines connecting the corners
+        for j in range(4):
+            pt1 = tuple(cornersShaped[j])
+            pt2 = tuple(cornersShaped[(j + 1) % 4])
+            cv.line(transformedFrame, pt1, pt2, colors[j], 2)
+
+        # Draw the tag ID on the frame
+        cv.putText(transformedFrame, str(tag.getId()), (int(tag.getCenter().x+10), int(tag.getCenter().y+10)), cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+
+    cv.imshow('transformed', transformedFrame)
+
+    # cv.imshow('original', scaledFrame)                                         
+
+    key = cv.waitKey(1) & 0xFF
+
+    if key == ord("q"):
+        break
+
+cv.destroyAllWindows()
+cap.release()
