@@ -17,8 +17,8 @@ public:
         Appearance(ofColor outline = ofColor(255, 0, 0),
             ofColor text = ofColor(255, 255, 255),
             float width = 2.0,
-            float font = 10,
-            string customLabel = "");
+            float font = 24,
+            string customLabel = "TEST");
     };
 
     // Core data
@@ -38,6 +38,8 @@ public:
     // Factory method to create predefined tag types
     static Tag createPresetTag(int tagId);
 
+    static bool setupFont();
+
 private:
-    // Add any private members here
+    static ofTrueTypeFont font;
 };

@@ -7,6 +7,8 @@ void ofApp::setup(){
     // string path = ofToDataPath("../../../../../csv/State_A.csv", true);
     // loadCSVData(path);
     loadCSVData("State_C.csv");
+
+    Tag::setupFont();
 }
 
 // Populate points and lines from CSV
