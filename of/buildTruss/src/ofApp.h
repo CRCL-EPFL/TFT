@@ -3,6 +3,7 @@
 #include "ofMain.h"
 #include "ofxOsc.h"
 #include "json.hpp"
+#include "ofxCsv.h"
 
 class ofApp : public ofBaseApp{
 
@@ -38,4 +39,17 @@ class ofApp : public ofBaseApp{
     	ofPoint scaleAdjustment{1.0, 1.0};
 		void adjustOffset(float x, float y) { offsetAdjustment += ofPoint(x, y); }
     	void adjustScale(float x, float y) { scaleAdjustment += ofPoint(x, y); }
+
+		struct Point {
+			float x, y, z;
+		};
+
+		struct Line {
+			int startIndex;
+			int endIndex;
+		};
+
+		vector<Point> points;
+    	vector<Line> lines;
+    	void loadCSVData(const std::string& filePath);
 };
