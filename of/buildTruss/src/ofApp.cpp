@@ -6,7 +6,7 @@ void ofApp::setup(){
     receiver.setup(7777);
     // string path = ofToDataPath("../../../../../csv/State_A.csv", true);
     // loadCSVData(path);
-    loadCSVData("State_C.csv");
+    loadCSVData("State_A.csv");
 
     Tag::setupFont();
 }
@@ -61,7 +61,7 @@ void ofApp::update(){
         if(m.getAddress() == "/tags"){
             string jsonStr = m.getArgAsString(0);
             // ofLogNotice("OSC") << "Received tags message: " << jsonStr;
-            cout << "Received tags message: " << jsonStr << endl;
+            // cout << "Received tags message: " << jsonStr << endl;
             
             auto j = nlohmann::json::parse(jsonStr);
             
@@ -70,7 +70,7 @@ void ofApp::update(){
             for(auto& tagJson : j){
                 int tagId = tagJson["id"].get<int>();
                 Tag tag(tagId);
-                cout << "Tag ID: " << tagId << endl;
+                // cout << "Tag ID: " << tagId << endl;
                 
                 // Parse corners
                 vector<ofPoint> corners;
@@ -89,13 +89,37 @@ void ofApp::update(){
                     center[0].get<float>() * scaleAdjustment.x + offsetAdjustment.x,
                     center[1].get<float>() * scaleAdjustment.y + offsetAdjustment.y
                 );
-                cout << "Tag center: " << centerPoint.x << "," << centerPoint.y << endl;
+                // cout << "Tag center: " << centerPoint.x << "," << centerPoint.y << endl;
 
                 tag.setPosition(centerPoint, corners);
                 
                 tags.push_back(tag);
                 // ofLogNotice("OSC") << "Added tag " << tagData.id << " at position " << tagData.center.x << "," << tagData.center.y;
                 // cout << "Added tag " << tagData.id << " at position " << tagData.center.x << "," << tagData.center.y << endl;
+            }
+        }
+    }
+
+    for (const auto& confirmTag : tags) {
+        if (confirmTag.id != 1) continue;
+        // cout << "Confirm tag " << confirmTag.id << " at position " << confirmTag.center.x << "," << confirmTag.center.y << endl;
+        
+        // Check against all other tags
+        for (auto& targetTag : tags) {
+            if (targetTag.id == 1) continue; // Skip other confirm tags
+            // cout << "Target tag " << targetTag.id << " at position " <
+            // Check if confirm tag's center is in target's hitbox
+            if (targetTag.isPointInHitbox(confirmTag.center)) {
+                cout << "Target tag " << targetTag.id << " in hitbox" << endl;
+                if (targetTag.getState() == Tag::State::INACTIVE) {
+                    targetTag.setState(Tag::State::ACTIVE);
+                    cout << "Target tag " << targetTag.id << " activated" << endl;
+                }
+            } else {
+                cout << "Target tag " << targetTag.id << " not in hitbox" << endl;
+                if (targetTag.getState() == Tag::State::ACTIVE) {
+                    targetTag.setState(Tag::State::INACTIVE);
+                }
             }
         }
     }
@@ -173,7 +197,7 @@ void ofApp::keyPressed(int key){
             break;
     }
     
-    cout << "Current adjustments - Offset: " << offsetAdjustment << " Scale: " << scaleAdjustment << endl;
+    // cout << "Current adjustments - Offset: " << offsetAdjustment << " Scale: " << scaleAdjustment << endl;
 }
 
 //--------------------------------------------------------------

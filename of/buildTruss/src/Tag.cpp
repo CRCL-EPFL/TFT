@@ -58,6 +58,38 @@ Tag::Tag(int tagId) : id(tagId) {
     }
 }
 
+ofPoint Tag::getLocalInteractionPoint() const {
+    float size = 40;
+    switch(id) {
+        case 0: // SELECT
+            return ofPoint(-size-11, -size-11);
+        case 1: // CONFIRM
+            return ofPoint(0, 0);  // Center point, or return empty optional since it has no interaction point
+        case 2: // INSERT
+            return ofPoint(0, size+17);
+        case 3: // MOVE
+            return ofPoint(0, -size-18);
+        default:
+            return ofPoint(0, 0);
+    }
+}
+
+ofPoint Tag::getInteractionPoint() const {
+    ofPoint localPoint = getLocalInteractionPoint();
+    
+    // Calculate rotation
+    float dx = corners[1].x - corners[0].x;
+    float dy = corners[1].y - corners[0].y;
+    float angleRadians = atan2(dy, dx);
+    
+    // Transform point from local to world space
+    ofPoint worldPoint;
+    worldPoint.x = center.x + (localPoint.x * cos(angleRadians) - localPoint.y * sin(angleRadians));
+    worldPoint.y = center.y + (localPoint.x * sin(angleRadians) + localPoint.y * cos(angleRadians));
+    
+    return worldPoint;
+}
+
 void Tag::draw() const {
     // Draw the tag outline
     ofPushStyle();
@@ -93,21 +125,55 @@ void Tag::draw() const {
         case 0: // SELECT - Right Triangle
             ofBeginShape();
             ofVertex(-size, -size);        // Top L
-            ofVertex(size/3, -size);             // Top R
-            ofVertex(-size, size/3);         // Bottom L
+            ofVertex(-size/3, -size);             // Top R
+            ofVertex(-size, -size/3);         // Bottom L
             ofEndShape(true);
+
+            ofFill();
+            ofDrawCircle(getLocalInteractionPoint(), 3);
+
+            
+            // Draw hitbox
+            ofNoFill();
+            // Change color based on state
+            if (state == State::ACTIVE) {
+                ofSetColor(0, 255, 0, 180); // Yellow highlight
+                ofSetLineWidth(appearance.outlineWidth);
+            } else if (state == State::INACTIVE) {
+                ofSetColor(255, 255, 255, 100); // Semi-transparent
+                ofSetLineWidth(1);
+            }
+            ofDrawCircle(0, 0, hitboxSize);
+
+            
             break;
             
         case 1: // CONFIRM - Rect
-            ofDrawRectangle(-size/2, -size/2, size, size);
+            ofDrawRectangle(-size*0.75, -size*0.75, size*1.5, size*1.5);
             break;
             
         case 2: // INSERT - Triangle
             ofBeginShape();
-            ofVertex(-size, 2*size/3);        // Top left
-            ofVertex(0, size+5);             // Bottom middle 
-            ofVertex(size, 2*size/3);         // Top right
+            ofVertex(-size/2, 2*size/3);        // Top left
+            ofVertex(0, size+8);             // Bottom middle 
+            ofVertex(size/2, 2*size/3);         // Top right
             ofEndShape(true);
+
+            ofFill();
+            ofDrawCircle(getLocalInteractionPoint(), 3);
+
+            // Draw hitbox
+            ofNoFill();
+            // Change color based on state
+            if (state == State::ACTIVE) {
+                ofSetColor(0, 255, 0, 180); // Yellow highlight
+                ofSetLineWidth(appearance.outlineWidth);
+            }
+            else if (state == State::INACTIVE) {
+                ofSetColor(255, 255, 255, 100); // Semi-transparent
+                ofSetLineWidth(1);
+            }
+            ofDrawCircle(0, 0, hitboxSize);
             break;
             
         case 3: // MOVE - Diamond
@@ -117,6 +183,26 @@ void Tag::draw() const {
             ofVertex(0, size);              // Bottom
             ofVertex(-size, 0);             // Left
             ofEndShape(true);
+
+            // vector<float> pattern = {10, 5}; // First number is dash length, second is gap length
+            // ofSetDashStyle(pattern);
+            // ofDrawRectangle(-size*0.75, -size*0.75+60, size*1.5, size*1.5);
+
+            ofFill();
+            ofDrawCircle(getLocalInteractionPoint(), 3);
+
+            // Draw hitbox
+            ofNoFill();
+            // Change color based on state
+            if (state == State::ACTIVE) {
+                ofSetColor(0, 255, 0, 180); // Yellow highlight
+                ofSetLineWidth(appearance.outlineWidth);
+            }
+            else if (state == State::INACTIVE) {
+                ofSetColor(255, 255, 255, 100); // Semi-transparent
+                ofSetLineWidth(1);
+            }
+            ofDrawCircle(0, 0, hitboxSize);
             break;
             
         default: // Default - Square
@@ -133,6 +219,23 @@ void Tag::draw() const {
     
     ofPopMatrix();
     ofPopStyle();
+}
+
+bool Tag::isPointInHitbox(const ofPoint& point) const {
+    // Only tags 0, 2, and 3 have hitboxes
+    if (id == 1) return false;
+    
+    // Get interaction point in world space
+    ofPoint interactionPoint = getInteractionPoint();
+    
+    // Calculate distance from point to interaction point
+    float distance = ofDist(point.x, point.y, 
+                          center.x, center.y);
+
+    cout << "Distance for id " << id << ": " << distance << endl;
+    
+    // Check if point is within hitbox radius
+    return distance < hitboxSize;
 }
 
 void Tag::update() {

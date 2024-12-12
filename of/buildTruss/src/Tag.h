@@ -40,6 +40,22 @@ public:
 
     static bool setupFont();
 
+    ofPoint getInteractionPoint() const;
+
+    enum class State {
+        INACTIVE,
+        ACTIVE
+    };
+
+    bool isPointInHitbox(const ofPoint& point) const;
+    State getState() const { return state; }
+    void setState(State newState) { state = newState; }
+
 private:
     static ofTrueTypeFont font;
+
+    ofPoint getLocalInteractionPoint() const;
+
+    State state = State::INACTIVE;
+    float hitboxSize = 100;
 };

@@ -43,7 +43,6 @@ osc_client = udp_client.SimpleUDPClient("127.0.0.1", 7777)
 while True:
     success, frame = cap.read()
 
-    # frame = cv.rotate(frame, cv.ROTATE_180)
     frame = undistort(frame, map1, map2)
     # Scale down to 1920x1080 for display
     scaledFrame = cv.resize(frame, (1920, 1080))
