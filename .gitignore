@@ -53,6 +53,8 @@ xcuserdata/
 *.aps
 ipch/
 
+.vs/
+
 # Eclipse
 .metadata
 local.properties

@@ -38,7 +38,7 @@ detector = AprilTagDetector()
 # estimator = AprilTagPoseEstimator()
 detector.addFamily('tagStandard41h12')
 
-osc_client = udp_client.SimpleUDPClient("127.0.0.1", 12345)
+osc_client = udp_client.SimpleUDPClient("127.0.0.1", 7777)
 
 while True:
     success, frame = cap.read()
@@ -82,17 +82,26 @@ while True:
         tagCenter = tag.getCenter()
         corners = tag.getCorners(corners)
 
+        # Scale factors for 1920x1200 output
+        scale_x = 1920 / 1510
+        scale_y = 1200 / 943
+
         # Draw lines connecting the corners
         cornersShaped = np.array(corners).reshape(-1, 2).astype(np.int32)
+
+        scaled_corners = cornersShaped * np.array([scale_x, scale_y])
+        scaled_center = np.array([float(tagCenter.x) * scale_x, float(tagCenter.y) * scale_y])
+
         allCorners.append({
-            'tag_id': int(tagId),
-            'corners': cornersShaped.tolist(),
-            'center': [float(tagCenter.x), float(tagCenter.y)]
+            'id': int(tagId),
+            'corners': scaled_corners.tolist(),
+            'center': scaled_center.tolist()
         })
 
         if allCorners:
-            # print("Sending OSC message:", json.dumps(allCorners, indent=2))
+            print("Sending OSC message:", json.dumps(allCorners))
             osc_client.send_message("/tags", json.dumps(allCorners))
+            # osc_client.send_message("/tags", "TESTING")
 
         # Draw lines connecting the corners
         for j in range(4):
