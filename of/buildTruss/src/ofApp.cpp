@@ -63,34 +63,37 @@ void ofApp::update(){
             
             auto j = nlohmann::json::parse(jsonStr);
             
-            currentTags.clear();
+            tags.clear();
             
-            for(auto& tag : j){
-                TagData tagData;
-                tagData.id = tag["id"].get<int>();
-                cout << "Tag ID: " << tagData.id << endl;
+            for(auto& tagJson : j){
+                int tagId = tagJson["id"].get<int>();
+                Tag tag(tagId);
+                cout << "Tag ID: " << tagId << endl;
                 
                 // Parse corners
-                for(auto& corner : tag["corners"]){
+                vector<ofPoint> corners;
+                for(auto& corner : tagJson["corners"]){
                     ofPoint adjustedPoint(
                         corner[0].get<float>() * scaleAdjustment.x + offsetAdjustment.x,
                         corner[1].get<float>() * scaleAdjustment.y + offsetAdjustment.y
                     );
-                    tagData.corners.push_back(adjustedPoint);
+                    corners.push_back(adjustedPoint);
                 }
-                cout << "Tag corners: " << tagData.corners.size() << endl;
+                // cout << "Tag corners: " << corners.size() << endl;
                 
                 // Parse center
-                auto& center = tag["center"];
-                tagData.center = ofPoint(
+                auto& center = tagJson["center"];
+                ofPoint centerPoint(
                     center[0].get<float>() * scaleAdjustment.x + offsetAdjustment.x,
                     center[1].get<float>() * scaleAdjustment.y + offsetAdjustment.y
                 );
-                cout << "Tag center: " << tagData.center.x << "," << tagData.center.y << endl;
+                cout << "Tag center: " << centerPoint.x << "," << centerPoint.y << endl;
+
+                tag.setPosition(centerPoint, corners);
                 
-                currentTags.push_back(tagData);
+                tags.push_back(tag);
                 // ofLogNotice("OSC") << "Added tag " << tagData.id << " at position " << tagData.center.x << "," << tagData.center.y;
-                cout << "Added tag " << tagData.id << " at position " << tagData.center.x << "," << tagData.center.y << endl;
+                // cout << "Added tag " << tagData.id << " at position " << tagData.center.x << "," << tagData.center.y << endl;
             }
         }
     }
@@ -98,19 +101,9 @@ void ofApp::update(){
 
 //--------------------------------------------------------------
 void ofApp::draw(){
-    for(const auto& tag : currentTags){
+    for(const auto& tag : tags){
         // Draw the tag outline
-        ofNoFill();
-        ofSetColor(255, 0, 0);
-        ofBeginShape();
-        for(const auto& corner : tag.corners){
-            ofVertex(corner.x, corner.y);
-        }
-        ofEndShape(true);
-        
-        // Draw the tag ID
-        ofSetColor(255);
-        ofDrawBitmapString("Tag " + ofToString(tag.id), tag.center.x, tag.center.y);
+        tag.draw();
     }
 
     const float SCREEN_WIDTH = 2.490;

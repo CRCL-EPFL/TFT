@@ -4,7 +4,7 @@
 #include "ofxOsc.h"
 #include "json.hpp"
 #include "ofxCsv.h"
-
+#include "Tag.h"
 class ofApp : public ofBaseApp{
 
 	public:
@@ -25,14 +25,6 @@ class ofApp : public ofBaseApp{
 		void gotMessage(ofMessage msg);
 
 		ofxOscReceiver receiver;
-        struct TagData {
-            int id;
-            vector<ofPoint> corners;
-            ofPoint center;
-        };
-        vector<TagData> currentTags;
-        
-        void updateTags();
 
 		// Fine-tuning
     	ofPoint offsetAdjustment{5, -8};
@@ -52,4 +44,7 @@ class ofApp : public ofBaseApp{
 		vector<Point> points;
     	vector<Line> lines;
     	void loadCSVData(const std::string& filePath);
+
+	private:
+		vector<Tag> tags;
 };
