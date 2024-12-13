@@ -6,8 +6,8 @@ void ofApp::setup(){
     receiver.setup(7777);
     // string path = ofToDataPath("../../../../../csv/State_A.csv", true);
     // loadCSVData(path);
-    loadCSVData("State_B.csv");
-    //  loadCSVData("helper.csv");
+    loadCSVData("State_C.csv");
+      //loadCSVData("helper.csv");
     // loadCSVBoxes("State_A_Boxes.csv");
     loadCSVBoxes("State_B_Boxes.csv");
 
@@ -52,11 +52,11 @@ void ofApp::loadCSVData(const std::string& filePath) {
             l.endIndex = ofToInt(values[2]);
 
             if (lines.size() == 0 || lines.size() == 1 || lines.size() == 2 || 
-                lines.size() == 9 || lines.size() == 10 || lines.size() == 3 || 
-                lines.size() == 4 || lines.size() == 8 || lines.size() == 11) {
+                lines.size() == 6 || lines.size() == 10 || lines.size() == 3 || 
+                lines.size() == 4 || lines.size() == 8 || lines.size() == 11 || lines.size() == 9 || lines.size() == 7) {
                 l.state = Line::State::CONFIRMED;
             } else {
-                l.state = Line::State::INACTIVE;
+                l.state = Line::State::CONFIRMED;
             }
             lines.push_back(l);
         }
