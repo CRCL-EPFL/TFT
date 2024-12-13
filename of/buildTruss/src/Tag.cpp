@@ -137,7 +137,7 @@ void Tag::draw() const {
             ofNoFill();
             // Change color based on state
             if (state == State::ACTIVE) {
-                ofSetColor(0, 255, 0, 180); // Yellow highlight
+                ofSetColor(0, 255, 0, 180); // Green
                 ofSetLineWidth(appearance.outlineWidth);
             } else if (state == State::INACTIVE) {
                 ofSetColor(255, 255, 255, 100); // Semi-transparent
@@ -166,7 +166,7 @@ void Tag::draw() const {
             ofNoFill();
             // Change color based on state
             if (state == State::ACTIVE) {
-                ofSetColor(0, 255, 0, 180); // Yellow highlight
+                ofSetColor(0, 255, 0, 180); // Green
                 ofSetLineWidth(appearance.outlineWidth);
             }
             else if (state == State::INACTIVE) {
@@ -195,7 +195,7 @@ void Tag::draw() const {
             ofNoFill();
             // Change color based on state
             if (state == State::ACTIVE) {
-                ofSetColor(0, 255, 0, 180); // Yellow highlight
+                ofSetColor(0, 255, 0, 180); // Green
                 ofSetLineWidth(appearance.outlineWidth);
             }
             else if (state == State::INACTIVE) {
@@ -232,7 +232,7 @@ bool Tag::isPointInHitbox(const ofPoint& point) const {
     float distance = ofDist(point.x, point.y, 
                           center.x, center.y);
 
-    cout << "Distance for id " << id << ": " << distance << endl;
+    // cout << "Distance for id " << id << ": " << distance << endl;
     
     // Check if point is within hitbox radius
     return distance < hitboxSize;
@@ -248,44 +248,4 @@ void Tag::setPosition(const ofPoint& newCenter, const vector<ofPoint>& newCorner
 
 void Tag::setAppearance(const Appearance& newAppearance) {
     appearance = newAppearance;
-}
-
-Tag Tag::createPresetTag(int tagId) {
-    Tag tag(tagId);
-    
-    // Define preset appearances based on tag ID
-    switch(tagId) {
-        case 0:
-            tag.setAppearance(Appearance(
-                ofColor(255,0,0),    // Red outline
-                ofColor(255,255,255), // White text
-                2.0,                  // Width
-                10,                   // Font size
-                "SELECT"            // Label
-            ));
-            break;
-        case 1:
-            tag.setAppearance(Appearance(
-                ofColor(0,255,0),    // Green outline
-                ofColor(255,255,255),
-                2.0,
-                10,
-                "CONFIRM"
-            ));
-            break;
-        case 2:
-            tag.setAppearance(Appearance(
-                ofColor(0,0,255),    // Blue outline
-                ofColor(255,255,255),
-                2.0,
-                10,
-                "INSERT"
-            ));
-            break;
-        default:
-            tag.setAppearance(Appearance()); // Default appearance
-            break;
-    }
-    
-    return tag;
 }

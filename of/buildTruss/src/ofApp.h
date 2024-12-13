@@ -39,12 +39,28 @@ class ofApp : public ofBaseApp{
 		struct Line {
 			int startIndex;
 			int endIndex;
+			enum class State { INACTIVE, ACTIVE, CONFIRMED };
+			State state = State::INACTIVE;
+		};
+
+		struct Box {
+			ofPoint topLeft;
+			ofPoint topRight;
+			ofPoint bottomLeft;
+			ofPoint bottomRight;
 		};
 
 		vector<Point> points;
     	vector<Line> lines;
     	void loadCSVData(const std::string& filePath);
+		bool isPointInBox(const ofPoint& point, const Box& box);
 
 	private:
+		const float SCREEN_WIDTH = 2.490;
+		const float SCREEN_HEIGHT = 1.560;
+
 		vector<Tag> tags;
+
+		vector<Box> boxes;
+		void loadCSVBoxes(const std::string& filePath);
 };

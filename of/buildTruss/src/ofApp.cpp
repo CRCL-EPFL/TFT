@@ -7,6 +7,7 @@ void ofApp::setup(){
     // string path = ofToDataPath("../../../../../csv/State_A.csv", true);
     // loadCSVData(path);
     loadCSVData("State_A.csv");
+    loadCSVBoxes("State_A_Boxes.csv");
 
     Tag::setupFont();
 }
@@ -50,6 +51,60 @@ void ofApp::loadCSVData(const std::string& filePath) {
             lines.push_back(l);
         }
     }
+}
+
+void ofApp::loadCSVBoxes(const std::string& filePath) {
+    ofFile file(filePath);
+    if (!file.exists()) {
+        // ofLogError("ofApp") << "Cannot load file: " << filePath;
+        cout << "Cannot load file: " << filePath << endl;
+        return;
+    }
+
+    ofBuffer buffer = ofBufferFromFile(filePath);
+    bool firstLine = true;
+
+    for (auto line : buffer.getLines()) {
+        if (line.empty()) continue;
+
+        if (firstLine) {
+            firstLine = false;
+            continue;  // Skip header
+        }
+
+        vector<string> values = ofSplitString(line, ",");
+        
+        if (values.size() >= 12) {  // 4 points × 3 coordinates (x,y,z)
+            Box box;
+            // Convert coordinates and flip y (1.560 - y) as in loadCSVData
+            box.topLeft = ofPoint(
+                ofToFloat(values[1]),
+                1.560 - ofToFloat(values[2])
+            );
+            box.topRight = ofPoint(
+                ofToFloat(values[4]),
+                1.560 - ofToFloat(values[5])
+            );
+            // Flipped these two
+            box.bottomRight = ofPoint(
+                ofToFloat(values[7]),
+                1.560 - ofToFloat(values[8])
+            );
+            box.bottomLeft = ofPoint(
+                ofToFloat(values[10]),
+                1.560 - ofToFloat(values[11])
+            );
+            boxes.push_back(box);
+        }
+    }
+    // cout << "Boxes loaded: " << boxes.size() << endl;
+    // for (size_t i = 0; i < boxes.size(); i++) {
+    //     cout << "Box " << i << ":" << endl;
+    //     cout << "  Top Left:     (" << boxes[i].topLeft.x << ", " << boxes[i].topLeft.y << ")" << endl;
+    //     cout << "  Top Right:    (" << boxes[i].topRight.x << ", " << boxes[i].topRight.y << ")" << endl;
+    //     cout << "  Bottom Left:  (" << boxes[i].bottomLeft.x << ", " << boxes[i].bottomLeft.y << ")" << endl;
+    //     cout << "  Bottom Right: (" << boxes[i].bottomRight.x << ", " << boxes[i].bottomRight.y << ")" << endl;
+    // }
 }
 
 //--------------------------------------------------------------
@@ -100,6 +155,37 @@ void ofApp::update(){
         }
     }
 
+    // Handle SELECT tag (id 0) interactions
+    for (const auto& selectTag : tags) {
+        if (selectTag.id != 0) continue;
+        
+        // Check against all boxes
+        for (size_t i = 0; i < boxes.size(); i++) {
+            // cout << "Checking box " << i << endl;
+            const auto& box = boxes[i];
+            
+            // Check if point is inside box using point-in-polygon test
+            if (isPointInBox(selectTag.getInteractionPoint(), box)) {
+                // cout << "Tag 0 in box " << i << endl;
+                if (i < lines.size() && lines[i].state != Line::State::CONFIRMED) {
+                    lines[i].state = Line::State::ACTIVE;
+
+                    // Check if confirm tag is also present
+                    for (const auto& confirmTag : tags) {
+                        if (confirmTag.id == 1 && selectTag.isPointInHitbox(confirmTag.center)) {
+                            lines[i].state = Line::State::CONFIRMED;
+                        }
+                    }
+                }
+            } else {
+                if (i < lines.size() && lines[i].state == Line::State::ACTIVE) {
+                    lines[i].state = Line::State::INACTIVE;
+                }
+            }
+        }
+    }
+
+    // Handle CONFIRM tag (id 1) interactions
     for (const auto& confirmTag : tags) {
         if (confirmTag.id != 1) continue;
         // cout << "Confirm tag " << confirmTag.id << " at position " << confirmTag.center.x << "," << confirmTag.center.y << endl;
@@ -110,13 +196,13 @@ void ofApp::update(){
             // cout << "Target tag " << targetTag.id << " at position " <
             // Check if confirm tag's center is in target's hitbox
             if (targetTag.isPointInHitbox(confirmTag.center)) {
-                cout << "Target tag " << targetTag.id << " in hitbox" << endl;
+                // cout << "Target tag " << targetTag.id << " in hitbox" << endl;
                 if (targetTag.getState() == Tag::State::INACTIVE) {
                     targetTag.setState(Tag::State::ACTIVE);
-                    cout << "Target tag " << targetTag.id << " activated" << endl;
+                    // cout << "Target tag " << targetTag.id << " activated" << endl;
                 }
             } else {
-                cout << "Target tag " << targetTag.id << " not in hitbox" << endl;
+                // cout << "Target tag " << targetTag.id << " not in hitbox" << endl;
                 if (targetTag.getState() == Tag::State::ACTIVE) {
                     targetTag.setState(Tag::State::INACTIVE);
                 }
@@ -132,8 +218,6 @@ void ofApp::draw(){
         tag.draw();
     }
 
-    const float SCREEN_WIDTH = 2.490;
-    const float SCREEN_HEIGHT = 1.560;
     const float CM_TO_PIXELS_X = ofGetWidth() / SCREEN_WIDTH;
     const float CM_TO_PIXELS_Y = ofGetHeight() / SCREEN_HEIGHT;
 
@@ -147,6 +231,23 @@ void ofApp::draw(){
     ofSetLineWidth(2);
     for (const auto& line : lines) {
         if (line.startIndex < points.size() && line.endIndex < points.size()) {
+            // Set color based on state
+            switch (line.state) {
+                case Line::State::CONFIRMED:
+                    ofSetColor(0, 255, 0);  // Green for permanent active
+                    ofSetLineWidth(5);
+                    break;
+                case Line::State::ACTIVE:
+                    ofSetColor(255, 165, 0);  // Orange for temporary active
+                    ofSetLineWidth(5);
+                    break;
+                case Line::State::INACTIVE:
+                default:
+                    ofSetColor(255, 255, 0);  // Yellow for inactive
+                    ofSetLineWidth(2);
+                    break;
+            }
+
             const auto& start = points[line.startIndex];
             const auto& end = points[line.endIndex];
             // Convert relative coordinates to screen coordinates
@@ -168,8 +269,53 @@ void ofApp::draw(){
         float screenY = point.y * CM_TO_PIXELS_Y;
         ofDrawCircle(screenX, screenY, 7);
     }
+
+    // Draw boxes
+    // ofSetColor(255, 255, 255, 128);  
+    // for (const auto& box : boxes) {
+    //     ofBeginShape();
+    //     ofVertex(box.topLeft.x * CM_TO_PIXELS_X, box.topLeft.y * CM_TO_PIXELS_Y);
+    //     ofVertex(box.topRight.x * CM_TO_PIXELS_X, box.topRight.y * CM_TO_PIXELS_Y);
+    //     ofVertex(box.bottomRight.x * CM_TO_PIXELS_X, box.bottomRight.y * CM_TO_PIXELS_Y);
+    //     ofVertex(box.bottomLeft.x * CM_TO_PIXELS_X, box.bottomLeft.y * CM_TO_PIXELS_Y);
+    //     ofEndShape(true);
+    // }
     
     ofPopStyle();
+}
+
+bool ofApp::isPointInBox(const ofPoint& point, const Box& box) {
+    cout << "Checking if point " << point.x << ", " << point.y << " is in box " << box.topLeft.x << ", " << box.topLeft.y << " - " << box.bottomRight.x << ", " << box.bottomRight.y << endl;
+    // Implementation of point-in-polygon test using crossing number algorithm
+    int cn = 0;    // crossing number counter
+    
+    // Create array of vertices for easier processing
+    const float CM_TO_PIXELS_X = ofGetWidth() / SCREEN_WIDTH;
+    const float CM_TO_PIXELS_Y = ofGetHeight() / SCREEN_HEIGHT;
+    
+    // Create array of vertices with converted coordinates
+    vector<ofPoint> vertices = {
+        ofPoint(box.topLeft.x * CM_TO_PIXELS_X, box.topLeft.y * CM_TO_PIXELS_Y),
+        ofPoint(box.topRight.x * CM_TO_PIXELS_X, box.topRight.y * CM_TO_PIXELS_Y),
+        ofPoint(box.bottomRight.x * CM_TO_PIXELS_X, box.bottomRight.y * CM_TO_PIXELS_Y),
+        ofPoint(box.bottomLeft.x * CM_TO_PIXELS_X, box.bottomLeft.y * CM_TO_PIXELS_Y)
+    };
+    
+    // Loop through all edges of the polygon
+    for (size_t i = 0; i < vertices.size(); i++) {
+        size_t next = (i + 1) % vertices.size();
+        
+        if (((vertices[i].y <= point.y) && (vertices[next].y > point.y))     // upward crossing
+            || ((vertices[i].y > point.y) && (vertices[next].y <= point.y))) { // downward crossing
+            // Compute actual edge-ray intersect x-coordinate
+            float vt = (float)(point.y - vertices[i].y) / (vertices[next].y - vertices[i].y);
+            if (point.x < vertices[i].x + vt * (vertices[next].x - vertices[i].x)) {
+                ++cn;   // valid crossing
+            }
+        }
+    }
+    
+    return (cn & 1);    // 0 if even (outside), 1 if odd (inside)
 }
 
 //--------------------------------------------------------------
