@@ -36,7 +36,8 @@ class ofApp : public ofBaseApp{
 			float x, y, z;
 			enum class State {
 				INACTIVE,
-				ACTIVE
+				ACTIVE,
+				CONFIRMED
 			} state = State::INACTIVE;
 
 			static constexpr float HITBOX_RADIUS = 30.0f;

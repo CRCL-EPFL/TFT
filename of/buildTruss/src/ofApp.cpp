@@ -6,7 +6,8 @@ void ofApp::setup(){
     receiver.setup(7777);
     // string path = ofToDataPath("../../../../../csv/State_A.csv", true);
     // loadCSVData(path);
-    loadCSVData("State_A.csv");
+    // loadCSVData("State_A.csv");
+    loadCSVData("helper.csv");
     loadCSVBoxes("State_A_Boxes.csv");
 
     Tag::setupFont();
@@ -210,13 +211,30 @@ void ofApp::update(){
         }
     }
 
+    // Handle MOVE tag (id 3) interactions
     for (const auto& moveTag : tags) {
         if (moveTag.id != 3) continue;
         
         // Check against all points
         for (auto& point : points) {
-            if (point.isPointInHitbox(moveTag.getInteractionPoint(), SCREEN_WIDTH, SCREEN_HEIGHT)) {
+            ofPoint interactionPoint = moveTag.getInteractionPoint();
+            if (point.isPointInHitbox(interactionPoint, SCREEN_WIDTH, SCREEN_HEIGHT)) {
                 point.state = Point::State::ACTIVE;
+
+                // Change state to confirmed if confirm tag is in hitbox
+                for (const auto& confirmTag : tags) {
+                    if (confirmTag.id == 1 && moveTag.isPointInHitbox(confirmTag.center)) {
+                        point.state = Point::State::CONFIRMED;
+
+                        // Convert screen (floor) coordinates back to world coordinates
+                        float worldX = (interactionPoint.x / ofGetWidth()) * SCREEN_WIDTH;
+                        float worldY = (interactionPoint.y / ofGetHeight()) * SCREEN_HEIGHT;
+                        
+                        // Update point position to follow the interaction point
+                        point.x = worldX;
+                        point.y = worldY;
+                    }
+                }
             } else {
                 point.state = Point::State::INACTIVE;
             }
@@ -256,7 +274,7 @@ void ofApp::draw(){
                     break;
                 case Line::State::INACTIVE:
                 default:
-                    ofSetColor(255, 255, 0);  // Yellow for inactive
+                    ofSetColor(30, 205, 255);  // Cyan for inactive
                     ofSetLineWidth(2);
                     break;
             }
@@ -283,10 +301,27 @@ void ofApp::draw(){
 
         if (point.state == Point::State::ACTIVE) {
             ofSetColor(0, 255, 0);  // Green for active points
-            ofDrawCircle(screenX, screenY, 12);  // Slightly larger
+            ofDrawCircle(screenX, screenY, 7);  // Slightly larger
         } else {
             ofSetColor(255, 0, 0);  // Red for inactive points
-            ofDrawCircle(screenX, screenY, 7);
+            ofDrawCircle(screenX, screenY, 4);
+        }
+
+        switch (point.state) {
+            case Point::State::CONFIRMED:
+                ofSetColor(0, 255, 0);  // Green for confirmed
+                ofDrawCircle(screenX, screenY, 7);  // Slightly larger
+                // ofSetLineWidth(5);
+                break;
+            case Point::State::ACTIVE:
+                ofSetColor(255, 0, 0);  // Cyan for inactive
+                ofDrawCircle(screenX, screenY, 7);
+                break;
+            case Point::State::INACTIVE:
+            default:
+                ofSetColor(255, 0, 0);  // Cyan for inactive
+                ofDrawCircle(screenX, screenY, 4);
+                break;
         }
     }
 
