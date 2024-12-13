@@ -7,8 +7,9 @@ void ofApp::setup(){
     // string path = ofToDataPath("../../../../../csv/State_A.csv", true);
     // loadCSVData(path);
     loadCSVData("State_B.csv");
-    //loadCSVData("helper.csv");
-    loadCSVBoxes("State_A_Boxes.csv");
+    //  loadCSVData("helper.csv");
+    // loadCSVBoxes("State_A_Boxes.csv");
+    loadCSVBoxes("State_B_Boxes.csv");
 
     Tag::setupFont();
 }
@@ -49,6 +50,14 @@ void ofApp::loadCSVData(const std::string& filePath) {
             Line l;
             l.startIndex = ofToInt(values[1]);
             l.endIndex = ofToInt(values[2]);
+
+            if (lines.size() == 0 || lines.size() == 1 || lines.size() == 2 || 
+                lines.size() == 9 || lines.size() == 10 || lines.size() == 3 || 
+                lines.size() == 4 || lines.size() == 8 || lines.size() == 11) {
+                l.state = Line::State::CONFIRMED;
+            } else {
+                l.state = Line::State::INACTIVE;
+            }
             lines.push_back(l);
         }
     }
@@ -100,14 +109,14 @@ void ofApp::loadCSVBoxes(const std::string& filePath) {
             boxes.push_back(box);
         }
     }
-    // cout << "Boxes loaded: " << boxes.size() << endl;
-    // for (size_t i = 0; i < boxes.size(); i++) {
-    //     cout << "Box " << i << ":" << endl;
-    //     cout << "  Top Left:     (" << boxes[i].topLeft.x << ", " << boxes[i].topLeft.y << ")" << endl;
-    //     cout << "  Top Right:    (" << boxes[i].topRight.x << ", " << boxes[i].topRight.y << ")" << endl;
-    //     cout << "  Bottom Left:  (" << boxes[i].bottomLeft.x << ", " << boxes[i].bottomLeft.y << ")" << endl;
-    //     cout << "  Bottom Right: (" << boxes[i].bottomRight.x << ", " << boxes[i].bottomRight.y << ")" << endl;
-    // }
+    cout << "Boxes loaded: " << boxes.size() << endl;
+    for (size_t i = 0; i < boxes.size(); i++) {
+        cout << "Box " << i << ":" << endl;
+        cout << "  Top Left:     (" << boxes[i].topLeft.x << ", " << boxes[i].topLeft.y << ")" << endl;
+        cout << "  Top Right:    (" << boxes[i].topRight.x << ", " << boxes[i].topRight.y << ")" << endl;
+        cout << "  Bottom Left:  (" << boxes[i].bottomLeft.x << ", " << boxes[i].bottomLeft.y << ")" << endl;
+        cout << "  Bottom Right: (" << boxes[i].bottomRight.x << ", " << boxes[i].bottomRight.y << ")" << endl;
+    }
 }
 
 //--------------------------------------------------------------
@@ -220,8 +229,7 @@ void ofApp::update(){
         }
     }
 
-    cout << "Start of update - tempGeo.isActive: " << tempGeo.isActive << endl;
-
+    // Handle INSERT tag (id 2) interactions
     tempGeo.isActive = false;
     tempGeo.previewLines.clear();
 
@@ -229,33 +237,73 @@ void ofApp::update(){
         if (insertTag.id != 2) continue;
         cout << "Found insert tag" << endl;
         ofPoint interactionPoint = insertTag.getInteractionPoint();
-        
-        // Check against all closed shapes
-        for (auto& shape : closedShapes) {
-            vector<ofPoint> shapePoints;
-            // Convert shape points to screen coordinates
-            for (int pointIndex : shape.pointIndices) {
-                // Not sure if this is necessary
-                if (pointIndex < points.size()) {
-                    const auto& point = points[pointIndex];
-                    float screenX = point.x * (ofGetWidth() / SCREEN_WIDTH);
-                    float screenY = point.y * (ofGetHeight() / SCREEN_HEIGHT);
-                    shapePoints.push_back(ofPoint(screenX, screenY));
-                }
-            }
-            
-            if (isPointInPolygon(interactionPoint, shapePoints, false)) {
-                tempGeo.isActive = true;
-                tempGeo.previewPoint.x = (interactionPoint.x/ofGetWidth()) * SCREEN_WIDTH;
-                tempGeo.previewPoint.y = (interactionPoint.y/ofGetHeight()) * SCREEN_HEIGHT;
 
-                tempGeo.previewLines.clear();
-                for (int pointIndex : shape.pointIndices) {
-                    TempLine previewLine;
-                    previewLine.startIndex = pointIndex; 
-                    previewLine.endPoint = tempGeo.previewPoint;  
-                    previewLine.state = Line::State::ACTIVE;
-                    tempGeo.previewLines.push_back(previewLine);
+        bool snapFound = false;
+        // Check against all boxes, for snapping first
+        for (size_t i = 0; i < boxes.size(); i++) {
+            // cout << "Checking box " << i << endl;
+            const auto& box = boxes[i];
+
+            vector<ofPoint> boxVertices = {
+                box.topLeft,
+                box.topRight,
+                box.bottomRight,
+                box.bottomLeft
+            };
+            
+            // Check if point is inside box using point-in-polygon test
+            if (isPointInPolygon(interactionPoint, boxVertices, true)) {
+                snapFound = true;
+
+                // Get the actual line points for line 6
+                const auto& startPoint = points[lines[6].startIndex];
+                const auto& endPoint = points[lines[6].endIndex];
+
+                // Convert interaction point to world coordinates
+                ofPoint worldInteractionPoint(
+                    (interactionPoint.x/ofGetWidth()) * SCREEN_WIDTH,
+                    (interactionPoint.y/ofGetHeight()) * SCREEN_HEIGHT
+                );
+
+                // Calculate perpendicular intersection point
+                ofPoint lineVector(endPoint.x - startPoint.x, endPoint.y - startPoint.y);
+                ofPoint pointVector(worldInteractionPoint.x - startPoint.x, worldInteractionPoint.y - startPoint.y);
+                float lineLengthSq = lineVector.x * lineVector.x + lineVector.y * lineVector.y;
+                float dot = (pointVector.x * lineVector.x + pointVector.y * lineVector.y) / lineLengthSq;
+                
+                // Calculate snap point
+                ofPoint snapPoint(
+                    startPoint.x + dot * lineVector.x,
+                    startPoint.y + dot * lineVector.y
+                );
+
+                tempGeo.isActive = true;
+                tempGeo.previewPoint.x = snapPoint.x;
+                tempGeo.previewPoint.y = snapPoint.y;
+
+                // Find the shape that contains line 6
+                const Shape* targetShape = nullptr;
+                for (const auto& shape : closedShapes) {
+                    if (find(shape.lineIndices.begin(), shape.lineIndices.end(), 6) != shape.lineIndices.end()) {
+                        targetShape = &shape;
+                        break;
+                    }
+                }
+
+                // Draw preview lines only from points in the same shape as line 6
+                if (targetShape) {
+                    for (int pointIndex : targetShape->pointIndices) {
+                        // Skip if point is part of line 6
+                        if (pointIndex == lines[6].startIndex || pointIndex == lines[6].endIndex) {
+                            continue;
+                        }
+                        
+                        TempLine previewLine;
+                        previewLine.startIndex = pointIndex;
+                        previewLine.endPoint = tempGeo.previewPoint;
+                        previewLine.state = Line::State::ACTIVE;
+                        tempGeo.previewLines.push_back(previewLine);
+                    }
                 }
 
                 // Check if confirm tag is present
@@ -263,8 +311,8 @@ void ofApp::update(){
                     if (confirmTag.id == 1 && insertTag.isPointInHitbox(confirmTag.center)) {
                         // Add the new point
                         Point newPoint;
-                        newPoint.x = tempGeo.previewPoint.x;
-                        newPoint.y = tempGeo.previewPoint.y;
+                        newPoint.x = snapPoint.x;
+                        newPoint.y = snapPoint.y;
                         points.push_back(newPoint);
                         int newPointIndex = points.size() - 1;
 
@@ -286,9 +334,71 @@ void ofApp::update(){
                         break;
                     }
                 }
-
-                // cout << "Preview lines: " << tempGeo.previewLines.size() << endl;
                 break;
+            }
+        }
+        
+        // Check against all closed shapes
+        if (!snapFound) {
+            for (auto& shape : closedShapes) {
+                vector<ofPoint> shapePoints;
+                // Convert shape points to screen coordinates
+                for (int pointIndex : shape.pointIndices) {
+                    // Not sure if this is necessary
+                    if (pointIndex < points.size()) {
+                        const auto& point = points[pointIndex];
+                        float screenX = point.x * (ofGetWidth() / SCREEN_WIDTH);
+                        float screenY = point.y * (ofGetHeight() / SCREEN_HEIGHT);
+                        shapePoints.push_back(ofPoint(screenX, screenY));
+                    }
+                }
+                
+                if (isPointInPolygon(interactionPoint, shapePoints, false)) {
+                    tempGeo.isActive = true;
+                    tempGeo.previewPoint.x = (interactionPoint.x/ofGetWidth()) * SCREEN_WIDTH;
+                    tempGeo.previewPoint.y = (interactionPoint.y/ofGetHeight()) * SCREEN_HEIGHT;
+
+                    tempGeo.previewLines.clear();
+                    for (int pointIndex : shape.pointIndices) {
+                        TempLine previewLine;
+                        previewLine.startIndex = pointIndex; 
+                        previewLine.endPoint = tempGeo.previewPoint;  
+                        previewLine.state = Line::State::ACTIVE;
+                        tempGeo.previewLines.push_back(previewLine);
+                    }
+
+                    // Check if confirm tag is present
+                    for (const auto& confirmTag : tags) {
+                        if (confirmTag.id == 1 && insertTag.isPointInHitbox(confirmTag.center)) {
+                            // Add the new point
+                            Point newPoint;
+                            newPoint.x = tempGeo.previewPoint.x;
+                            newPoint.y = tempGeo.previewPoint.y;
+                            points.push_back(newPoint);
+                            int newPointIndex = points.size() - 1;
+
+                            // Add the new lines
+                            for (const auto& previewLine : tempGeo.previewLines) {
+                                Line newLine;
+                                newLine.startIndex = previewLine.startIndex;
+                                newLine.endIndex = newPointIndex;
+                                newLine.state = Line::State::INACTIVE;
+                                lines.push_back(newLine);
+                            }
+
+                            // Clear the preview
+                            tempGeo.isActive = false;
+                            tempGeo.previewLines.clear();
+
+                            // Recalculate shapes with new geometry
+                            findClosedShapes();
+                            break;
+                        }
+                    }
+
+                    // cout << "Preview lines: " << tempGeo.previewLines.size() << endl;
+                    break;
+                }
             }
         }
     }
@@ -326,7 +436,7 @@ void ofApp::update(){
 
 //--------------------------------------------------------------
 void ofApp::draw(){
-    cout << "Draw - tempGeo.isActive: " << tempGeo.isActive << endl;
+    // cout << "Draw - tempGeo.isActive: " << tempGeo.isActive << endl;
     for(const auto& tag : tags){
         // Draw the tag outline
         tag.draw();
