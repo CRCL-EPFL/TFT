@@ -34,6 +34,19 @@ class ofApp : public ofBaseApp{
 
 		struct Point {
 			float x, y, z;
+			enum class State {
+				INACTIVE,
+				ACTIVE
+			} state = State::INACTIVE;
+
+			static constexpr float HITBOX_RADIUS = 30.0f;
+
+			bool isPointInHitbox(const ofPoint& testPoint, float screenWidth, float screenHeight) const {
+				return ofDist(x * ofGetWidth() / screenWidth, 
+							 y * ofGetHeight() / screenHeight,
+							 testPoint.x, 
+							 testPoint.y) < HITBOX_RADIUS;
+			}
 		};
 
 		struct Line {
@@ -56,6 +69,7 @@ class ofApp : public ofBaseApp{
 		bool isPointInBox(const ofPoint& point, const Box& box);
 
 	private:
+		// Screen size in meters
 		const float SCREEN_WIDTH = 2.490;
 		const float SCREEN_HEIGHT = 1.560;
 

@@ -209,6 +209,19 @@ void ofApp::update(){
             }
         }
     }
+
+    for (const auto& moveTag : tags) {
+        if (moveTag.id != 3) continue;
+        
+        // Check against all points
+        for (auto& point : points) {
+            if (point.isPointInHitbox(moveTag.getInteractionPoint(), SCREEN_WIDTH, SCREEN_HEIGHT)) {
+                point.state = Point::State::ACTIVE;
+            } else {
+                point.state = Point::State::INACTIVE;
+            }
+        }
+    }
 }
 
 //--------------------------------------------------------------
@@ -267,7 +280,14 @@ void ofApp::draw(){
         // Convert relative coordinates to screen coordinates
         float screenX = point.x * CM_TO_PIXELS_X;
         float screenY = point.y * CM_TO_PIXELS_Y;
-        ofDrawCircle(screenX, screenY, 7);
+
+        if (point.state == Point::State::ACTIVE) {
+            ofSetColor(0, 255, 0);  // Green for active points
+            ofDrawCircle(screenX, screenY, 12);  // Slightly larger
+        } else {
+            ofSetColor(255, 0, 0);  // Red for inactive points
+            ofDrawCircle(screenX, screenY, 7);
+        }
     }
 
     // Draw boxes
