@@ -13,6 +13,9 @@ D=np.array([[-0.03787467518808117], [0.0846315868116808], [-0.1264491080629783],
 # Store map results
 map1, map2 = cv.fisheye.initUndistortRectifyMap(K, D, np.eye(3), K, DIM, cv.CV_16SC2)
 
+fourcc = cv.VideoWriter_fourcc(*'mp4v')
+out = cv.VideoWriter('output.mp4', fourcc, 30.0, (1510, 943))
+
 def undistort(img, map1, map2):    
     undistorted_img = cv.remap(img, map1, map2, interpolation=cv.INTER_LINEAR, borderMode=cv.BORDER_CONSTANT)    
     
@@ -45,7 +48,7 @@ while True:
 
     frame = undistort(frame, map1, map2)
     # Scale down to 1920x1080 for display
-    scaledFrame = cv.resize(frame, (1920, 1080))
+    scaledFrame = cv.resize(frame, (1510, 943))
 
     outputWidth, outputHeight = 1510, 943
 
@@ -106,19 +109,22 @@ while True:
         for j in range(4):
             pt1 = tuple(cornersShaped[j])
             pt2 = tuple(cornersShaped[(j + 1) % 4])
-            cv.line(transformedFrame, pt1, pt2, colors[j], 2)
+            # cv.line(transformedFrame, pt1, pt2, colors[j], 2)
 
         # Draw the tag ID on the frame
-        cv.putText(transformedFrame, str(tag.getId()), (int(tag.getCenter().x+10), int(tag.getCenter().y+10)), cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+        # cv.putText(transformedFrame, str(tag.getId()), (int(tag.getCenter().x+10), int(tag.getCenter().y+10)), cv.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
 
     cv.imshow('transformed', transformedFrame)
+
+    out.write(transformedFrame)
 
     # cv.imshow('original', scaledFrame)                                         
 
     key = cv.waitKey(1) & 0xFF
 
-    if key == ord("q"):
+    if key == 27:  # ESC key
         break
 
 cv.destroyAllWindows()
+out.release()
 cap.release()

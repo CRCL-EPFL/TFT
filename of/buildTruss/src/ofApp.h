@@ -36,11 +36,13 @@ class ofApp : public ofBaseApp{
 			float x, y, z;
 			enum class State {
 				INACTIVE,
-				ACTIVE
+				ACTIVE,
+				CONFIRMED
 			} state = State::INACTIVE;
 
 			static constexpr float HITBOX_RADIUS = 30.0f;
-
+			
+			// Check if something is in the hitbox of this point
 			bool isPointInHitbox(const ofPoint& testPoint, float screenWidth, float screenHeight) const {
 				return ofDist(x * ofGetWidth() / screenWidth, 
 							 y * ofGetHeight() / screenHeight,
@@ -49,12 +51,23 @@ class ofApp : public ofBaseApp{
 			}
 		};
 
+		vector<Point> points;
+
 		struct Line {
 			int startIndex;
 			int endIndex;
 			enum class State { INACTIVE, ACTIVE, CONFIRMED };
 			State state = State::INACTIVE;
 		};
+
+		// Closed shapes, for checking insert points
+		struct Shape {
+			vector<int> pointIndices;
+			vector<int> lineIndices;
+		};
+
+		vector<Shape> closedShapes;
+		void findClosedShapes();
 
 		struct Box {
 			ofPoint topLeft;
@@ -63,10 +76,30 @@ class ofApp : public ofBaseApp{
 			ofPoint bottomRight;
 		};
 
-		vector<Point> points;
     	vector<Line> lines;
+
     	void loadCSVData(const std::string& filePath);
-		bool isPointInBox(const ofPoint& point, const Box& box);
+		// Function for checking if point is in Box object
+		bool isPointInPolygon(const ofPoint& point, const vector<ofPoint>& vertices, bool convertToScreen = true);
+
+		struct TempLine {
+			int startIndex;      // Index into existing points array
+			Point endPoint;      // Actual coordinates of the preview point
+			Line::State state;
+		};
+
+		struct TempGeo {
+			Point previewPoint;
+			vector<TempLine> previewLines;
+			bool isActive = false;
+			
+			void clear() {
+				previewLines.clear();
+				isActive = false;
+			}
+		};
+
+		TempGeo tempGeo;
 
 	private:
 		// Screen size in meters
