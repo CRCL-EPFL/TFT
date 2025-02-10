@@ -1,13 +1,11 @@
-import itertools
 import compas_rrc as rrc
-from compas.geometry import Frame, Vector
+from compas.geometry import Scale, Frame
 import math
 from compas_rhino.geometry import RhinoMesh
-from compas_fab.robots import AttachedCollisionMesh
-from compas_fab.robots import CollisionMesh
-from compas.robots import Configuration
-from scriptcontext import sticky as st
+from compas_fab.robots import AttachedCollisionMesh, CollisionMesh
 from compas_ghpython import draw_frame
+from compas_rhino.conversions import plane_to_compas_frame
+import Rhino.Geometry as rg
 import uuid
 from production_data import Action
 
@@ -23,19 +21,72 @@ def generate_default_tolerances(joints):
 
 
 class TFTProcess(object):
-    def __init__(self, robot, speed = 100):
+    def __init__(self, robot, TRANSFORM_ROBOT_A_TO_ROBOT_B = rg.Transform(), TRANSFORM_ROBOT_B_TO_ROBOT_A = rg.Transform(), speed = 100):
         self.robot = robot
         self.speed = speed
         self.actions = []
+        self.TRANSFORM_ROBOT_A_TO_ROBOT_B = TRANSFORM_ROBOT_A_TO_ROBOT_B
+        self.TRANSFORM_ROBOT_B_TO_ROBOT_A = TRANSFORM_ROBOT_B_TO_ROBOT_A
+        self.S = Scale.from_factors([1000] * 3)
 
     def setup(self):
 
         self.actions.append(Action('SetTool', dict(tool_name='tool0')))
         self.actions.append(Action('SetWorkObject', dict(wobj_name='wobj0')))
 
-    def pick(self):
+    def pick(self, APPROACH_PICK_CONFIG, pick_plane, approach_distance):
 
-        pass
+        configurations = []
+
+        #send to APPROACH_PICK_CONFIG
+        joints = [math.degrees(j) for j in APPROACH_PICK_CONFIG.joint_values]
+        self.actions.append(Action('MoveToJoints', dict(joints = joints, ext_axes = [], speed=self.speed, zone= rrc.Zone.FINE, feedback_level=rrc.FeedbackLevel.DONE), action_id = len(self.actions)))
+        configurations.append(APPROACH_PICK_CONFIG)
+
+        #open gripper
+        self.actions.append(Action('SetDigital', dict(io_name = 'Local_IO_0_DO1', value = 1),action_id = len(self.actions)))
+
+        #send to approach_pick_plane
+        approach_pick_plane = pick_plane + rg.Vector3d(0, 0, approach_distance)
+        approach_pick_plane.Transform(self.TRANSFORM_ROBOT_A_TO_ROBOT_B)
+        frame = plane_to_compas_frame(approach_pick_plane)
+        frame_rob = self.robot.from_tcf_to_t0cf([frame])[0]
+        scaled_frame = frame_rob.transformed(self.S)
+        self.actions.append(Action('MoveToFrame', dict(frame= scaled_frame, speed=self.speed, zone=rrc.Zone.FINE, motion_type='rrc.Motion.LINEAR',feedback_level=rrc.FeedbackLevel.DONE), action_id = len(self.actions)))
+
+        #send to pick_plane
+
+        pick_plane.Transform(self.TRANSFORM_ROBOT_A_TO_ROBOT_B)
+        frame = plane_to_compas_frame(pick_plane)
+        frame_rob = self.robot.from_tcf_to_t0cf([frame])[0]
+        scaled_frame = frame_rob.transformed(self.S)
+        self.actions.append(Action('MoveToFrame', dict(frame= scaled_frame, speed=self.speed, zone=rrc.Zone.FINE, motion_type='rrc.Motion.LINEAR',feedback_level=rrc.FeedbackLevel.DONE), action_id = len(self.actions)))
+
+        #wait
+        self.actions.append(Action('WaitTime', dict(time = 1,  feedback_level=rrc.FeedbackLevel.DONE), action_id = len(self.actions)))
+
+        #close gripper
+        self.actions.append(Action('SetDigital', dict(io_name = 'Local_IO_0_DO1', value = 0),action_id = len(self.actions)))
+
+        #text
+        self.actions.append(Action('PrintText', dict(text='Screw the beam to the gripper!'), action_id = len(self.actions)))
+        self.actions.append(Action('Stop', dict(), action_id = len(self.actions)))
+
+        #send to approach_pick_plane
+        frame = plane_to_compas_frame(approach_pick_plane)
+        frame_rob = self.robot.from_tcf_to_t0cf([frame])[0]
+        scaled_frame = frame_rob.transformed(self.S)
+        self.actions.append(Action('MoveToFrame', dict(frame= scaled_frame, speed=self.speed, zone=rrc.Zone.FINE, motion_type='rrc.Motion.LINEAR',feedback_level=rrc.FeedbackLevel.DONE), action_id = len(self.actions)))
+
+        #text
+        self.actions.append(Action('PrintText', dict(text='Robot goes to cut'), action_id = len(self.actions)))
+        self.actions.append(Action('Stop', dict(), action_id = len(self.actions)))
+
+        #send to APPROACH_PICK_CONFIG
+        joints = [math.degrees(j) for j in APPROACH_PICK_CONFIG.joint_values]
+        self.actions.append(Action('MoveToJoints', dict(joints = joints, ext_axes = [], speed=self.speed, zone= 10, feedback_level=rrc.FeedbackLevel.DONE), action_id = len(self.actions)))
+
+        return configurations
 
     def cut_side_A(self):
 
@@ -138,6 +189,3 @@ class TFTProcess(object):
 
 
         return configurations
-    
-    def get_configurations_from_actions():
-        pass
