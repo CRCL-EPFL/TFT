@@ -1,6 +1,7 @@
 import Rhino.Geometry as rg
 import math
 
+
 class Beam:
     def __init__(self, axis, height, width):
 
@@ -9,6 +10,10 @@ class Beam:
         self.width = width
         self.uncut_polyline = self.get_uncut_polyline()
         self.cut_polyline = self.uncut_polyline
+        self.centroid = rg.AreaMassProperties.Compute(self.uncut_polyline.ToNurbsCurve()).Centroid
+        self.xaxis = self.axis.PointAt(0) - self.axis.PointAt(1)
+        self.yaxis = rg.Vector3d.CrossProduct(self.xaxis, rg.Vector3d(0, 0, 1))
+        self.plane = rg.Plane(self.centroid, self.xaxis, self.yaxis)
 
     def get_uncut_polyline(self):
 
@@ -32,6 +37,64 @@ class Beam:
         rectangle = rg.Polyline(corners + [corners[0]])
         return rg.PolylineCurve(rectangle)
 
+    def get_cut_planes(self, blade_side_A, blade_side_B):
+
+        def angle_from_center_clockwise(pt, center):
+            vector = rg.Vector3d(pt.X - center.X, pt.Y - center.Y, 0)
+            angle = math.atan2(vector.Y, vector.X)
+            # Rotate reference so positive Y-axis is 0 radians
+            adjusted_angle = (angle - math.pi / 2) % (2 * math.pi)
+            return adjusted_angle
+
+        def angle_from_center_anticlockwise(pt, center):
+            vector = rg.Vector3d(pt.X - center.X, pt.Y - center.Y, 0)
+            angle = math.atan2(vector.Y, vector.X)
+            # Rotate reference so positive Y-axis is 0 radians and reverse for CCW
+            adjusted_angle = (2 * math.pi - (angle - math.pi / 2)) % (2 * math.pi)
+            return adjusted_angle
+
+        def get_plane(pt1, pt2, blade_plane):
+            yaxis = pt2 - pt1
+            xaxis = rg.Vector3d.CrossProduct(yaxis, rg.Vector3d(0, 0, -1))
+            source = rg.Plane(pt1, xaxis, yaxis)
+            trans = rg.Transform.PlaneToPlane(source, blade_plane)
+            temp = rg.Plane(self.plane.Origin, self.plane.XAxis, self.plane.YAxis)
+            temp.Transform(trans)
+            return temp
+
+        moved_centroid = self.centroid - 0.5 * (self.width*self.yaxis)
+        moved_ref_plane = rg.Plane(moved_centroid, self.xaxis, self.yaxis)
+
+        trans = rg.Transform.PlaneToPlane(moved_ref_plane, rg.Plane.WorldXY)
+        points = list(self.cut_polyline.ToPolyline())[:-1]
+        for p in points:
+            p.Transform(trans)
+
+        center = rg.Point3d(0, 0, 0)
+        positive_x = [pt for pt in points if pt.X > 0]
+        negative_x = [pt for pt in points if pt.X < 0]
+
+        Positive_X_Sorted = sorted(positive_x, key=lambda pt: angle_from_center_anticlockwise(pt, center))
+        Negative_X_Sorted = sorted(negative_x, key=lambda pt: angle_from_center_clockwise(pt, center))
+
+        inverse_trans = trans.TryGetInverse()[1]
+
+        for p in Positive_X_Sorted:
+            p.Transform(inverse_trans)
+        for p in Negative_X_Sorted:
+            p.Transform(inverse_trans)
+
+        self.helper1 = Positive_X_Sorted
+        self.helper2 = Negative_X_Sorted
+
+        in_cut_plane_side_a1 = get_plane(Positive_X_Sorted[0], Positive_X_Sorted[1], blade_side_A)
+        in_cut_plane_side_a2 = get_plane(Positive_X_Sorted[1], Positive_X_Sorted[2], blade_side_A)
+
+        in_cut_plane_side_b1 = get_plane(Negative_X_Sorted[0], Negative_X_Sorted[1], blade_side_B)
+        in_cut_plane_side_b2 = get_plane(Negative_X_Sorted[1], Negative_X_Sorted[2], blade_side_B)
+
+        return in_cut_plane_side_a1, in_cut_plane_side_a2, in_cut_plane_side_b1, in_cut_plane_side_b2
+
 
 class Node:
     def __init__(self, position, beams):
@@ -50,7 +113,7 @@ class Node:
             # Check if either endpoint of the beam's axis is close to the node's position
             if beam.axis.From.DistanceTo(self.position) < tolerance or beam.axis.To.DistanceTo(self.position) < tolerance:
                 self.add_beam(beam)
-    
+
     def organize_beams(self):
 
         angles = []
@@ -59,7 +122,7 @@ class Node:
                 direction = beam.axis.To - self.position
             else:
                 direction = beam.axis.From - self.position
-            
+
             # Calculate angle using atan2
             angles.append(math.atan2(direction.Y, direction.X))
 
@@ -67,23 +130,21 @@ class Node:
         self.connected_beams = [x for _, x in sorted(zip(angles, self.connected_beams))]
 
     def cut_beams(self):
-        
 
         for i, beam1 in enumerate(self.connected_beams):
             beam2 = self.connected_beams[(i+1)%len(self.connected_beams)]
             events = rg.Intersect.Intersection.CurveCurve(
                 beam1.cut_polyline, beam2.cut_polyline, 1e-6, 1e-6
             )
-            
-            if events.Count>=2:
+
+            if events.Count >= 2:
                 intersection_points = [event.PointA for event in events]
-                print (len(intersection_points))
                 furthest_point = max(intersection_points, key=lambda pt: pt.DistanceTo(self.position))
 
                 # Create a line from the node position to the furthest intersection point
                 cutting_line = rg.Line(self.position, furthest_point)
-                cutting_line.Extend(0.2,0.2)
-                #cut beam1
+                cutting_line.Extend(0.2, 0.2)
+                # cut beam1
                 beam1.cut_polyline.Domain = rg.Interval(0,1)
                 par = [beam1.cut_polyline.ClosestPoint(self.position)[1], beam1.cut_polyline.ClosestPoint(furthest_point)[1] ]
                 split = beam1.cut_polyline.Split(par)
@@ -93,13 +154,13 @@ class Node:
                 else:
                     beam1.cut_polyline = split[1]
 
-                #close curve
+                # close curve
                 pol = beam1.cut_polyline.TryGetPolyline()[1]
                 new_points = [p for p in pol]
                 new_points.append(new_points[0])
                 beam1.cut_polyline = rg.Curve.CreateInterpolatedCurve(new_points, 1)
 
-                #cut beam2
+                # cut beam2
                 beam2.cut_polyline.Domain = rg.Interval(0,1)
                 par = [beam2.cut_polyline.ClosestPoint(self.position)[1], beam2.cut_polyline.ClosestPoint(furthest_point)[1] ]
                 split = beam2.cut_polyline.Split(par)
@@ -109,7 +170,7 @@ class Node:
                 else:
                     beam2.cut_polyline = split[1]
 
-                #close curve
+                # close curve
                 pol = beam2.cut_polyline.TryGetPolyline()[1]
                 new_points = [p for p in pol]
                 new_points.append(new_points[0])
