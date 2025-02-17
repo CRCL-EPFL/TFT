@@ -124,7 +124,7 @@ class Beam:
 
         return [brep_A, brep_B]
 
-    def get_attached_mesh(self):
+    def get_visual_attached_mesh(self):
         pass
 
 
