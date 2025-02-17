@@ -1,5 +1,6 @@
 import Rhino.Geometry as rg
 import math
+import Rhino
 
 
 class Beam:
@@ -84,8 +85,8 @@ class Beam:
         for p in Negative_X_Sorted:
             p.Transform(inverse_trans)
 
-        self.helper1 = Positive_X_Sorted
-        self.helper2 = Negative_X_Sorted
+        self.numbersA = Positive_X_Sorted
+        self.numbersB = Negative_X_Sorted
 
         in_cut_plane_side_a1 = get_plane(Positive_X_Sorted[0], Positive_X_Sorted[1], blade_side_A)
         in_cut_plane_side_a2 = get_plane(Positive_X_Sorted[1], Positive_X_Sorted[2], blade_side_A)
@@ -94,6 +95,37 @@ class Beam:
         in_cut_plane_side_b2 = get_plane(Negative_X_Sorted[1], Negative_X_Sorted[2], blade_side_B)
 
         return in_cut_plane_side_a1, in_cut_plane_side_a2, in_cut_plane_side_b1, in_cut_plane_side_b2
+
+    def add_labels(self):
+        # Create a label 'A' on the right side and 'B' on the left side
+        plane_A = rg.Plane(self.numbersA[1], -self.plane.XAxis, self.plane.YAxis)
+        plane_B = rg.Plane(self.numbersB[1], -self.plane.XAxis, self.plane.YAxis)
+
+        text_A = rg.TextEntity()
+        text_A.Plane = plane_A
+        text_A.TextHeight = 0.05
+        text_A.Text = "A"
+
+        text_B = rg.TextEntity()
+        text_B.Plane = plane_B
+        text_B.TextHeight = 0.05
+        text_B.Text = "B"
+
+        # Convert the text to a 2D curve
+        curve_A = rg.Curve.JoinCurves(text_A.Explode())[0]
+        curve_B = rg.Curve.JoinCurves(text_B.Explode())[0]
+
+        extrusion_A = rg.Extrusion.Create(curve_A, plane_A, 0.01, True)  # Extrude along the Z-axis
+        extrusion_B = rg.Extrusion.Create(curve_B, plane_B, 0.01, True)  # Same for B
+
+        # Convert extrusions to Breps
+        brep_A = extrusion_A.ToBrep()
+        brep_B = extrusion_B.ToBrep()
+
+        return [brep_A, brep_B]
+
+    def get_attached_mesh(self):
+        pass
 
 
 class Node:
