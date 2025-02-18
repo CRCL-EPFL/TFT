@@ -1,0 +1,42 @@
+[
+  {
+    "exec_level": 0,
+    "feedback": "Done",
+    "feedback_id": 3,
+    "feedback_level": 0,
+    "float_values": [],
+    "instruction": "r_RRC_MoveToJoints",
+    "sequence_id": 1,
+    "string_values": []
+  },
+  {
+    "exec_level": 0,
+    "feedback": "Done",
+    "feedback_id": 5,
+    "feedback_level": 0,
+    "float_values": [],
+    "instruction": "r_RRC_MoveTo",
+    "sequence_id": 2,
+    "string_values": []
+  },
+  {
+    "exec_level": 0,
+    "feedback": "Done",
+    "feedback_id": 6,
+    "feedback_level": 0,
+    "float_values": [],
+    "instruction": "r_RRC_MoveTo",
+    "sequence_id": 3,
+    "string_values": []
+  },
+  {
+    "exec_level": 0,
+    "feedback": "Done",
+    "feedback_id": 7,
+    "feedback_level": 0,
+    "float_values": [],
+    "instruction": "r_RRC_WaitTime",
+    "sequence_id": 4,
+    "string_values": []
+  }
+]

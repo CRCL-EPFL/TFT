@@ -8,7 +8,7 @@ import time
 
 HERE = os.path.dirname(__file__)
 DATA = os.path.abspath(os.path.join(HERE, '..', 'data'))
-file_name = DATA + "/" + "20241212_all_process_1.json"
+file_name = DATA + "/" + "20241213_all_process_9.json"
 output_path = os.path.join(file_name + '_output.json')
 
 PRODUCTION_LOG_CONFIG = dict(
@@ -57,7 +57,6 @@ if __name__ == '__main__':
         feedback.subscribe(store_production_log)
 
     for i in range(len(production_data.actions)):
-    #for i in range(1700,1809,1):
 
         action = production_data.actions[i]
         prefixed_action_class_name = '{}{}'.format("rrc.", action.name)
