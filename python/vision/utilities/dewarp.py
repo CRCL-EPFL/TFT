@@ -12,7 +12,8 @@ D=np.array([[-0.03787467518808117], [0.0846315868116808], [-0.1264491080629783],
 map1, map2 = cv2.fisheye.initUndistortRectifyMap(K, D, np.eye(3), K, DIM, cv2.CV_16SC2)
 
 fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-out = cv2.VideoWriter('output.mp4', fourcc, 30.0, (1280, 720))
+out = cv2.VideoWriter('output.mp4', fourcc, 30.0, (3840, 2160))
+# out = cv2.VideoWriter('output.mp4', fourcc, 30.0, (1280, 720))
 
 def undistort():
     camera_index = 1  # Default camera. Change if needed (e.g., 1 for another camera)
@@ -39,7 +40,8 @@ def undistort():
         # map1, map2 = cv2.fisheye.initUndistortRectifyMap(K, D, np.eye(3), K, DIM, cv2.CV_16SC2)
         undistorted_img = cv2.remap(img, map1, map2, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)    
 
-        display_img = cv2.resize(undistorted_img, (1280, 720))
+        display_img = cv2.resize(undistorted_img, (3840, 2160))
+        # display_img = cv2.resize(undistorted_img, (1280, 720))
         out.write(display_img)
         cv2.imshow("undistorted", display_img)
         
