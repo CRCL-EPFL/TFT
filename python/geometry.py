@@ -1,12 +1,67 @@
 import Rhino.Geometry as rg
 import math
 import Rhino
+import json
+
+
+class Truss:
+    def __init__(self):
+
+        self.nodes = []
+        self.beams = []
+
+    def add_node(self, position):
+        """Adds a node"""
+
+        new_node = Node(len(self.nodes), position)
+        self.nodes.append(new_node)
+        return new_node
+
+    def add_beam(self, axis, height, width):
+        """Creates a beam between two existing nodes and adds it to the truss."""
+
+        tolerance = 1e-6
+
+        # find which nodes are connected to this beam
+        for i, node in enumerate(self.nodes):
+            # Check if either endpoint of the beam's axis is close to the node's position
+            if axis.From.DistanceTo(node.position) < tolerance:
+                start_node_index = i
+            if axis.To.DistanceTo(node.position) < tolerance:
+                end_node_index = i
+
+        new_beam = Beam(len(self.beams), start_node_index, end_node_index, axis, height, width)
+
+        self.beams.append(new_beam)
+
+        self.nodes[start_node_index].add_beam(new_beam)
+        self.nodes[end_node_index].add_beam(new_beam)
+
+    def update_cut_geometry(self):
+        pass
+
+    def to_dict(self):
+        """Serializes the truss into a dictionary format."""
+        return {
+            "nodes": [node.to_dict() for node in self.nodes],
+            "beams": [beam.to_dict() for beam in self.beams]
+        }
+
+    def to_json(self):
+        """Converts the dictionary representation to a JSON string."""
+        return json.dumps(self.to_dict(), indent=4)
+
+    def __repr__(self):
+        return f"Truss(Nodes={len(self.nodes)}, Beams={len(self.beams)})"
 
 
 class Beam:
-    def __init__(self, axis, height, width):
+    def __init__(self, id, start_node_index, end_node_index, axis, height, width):
 
+        self.id = id
+        # a line defining the main axis of the beam
         self.axis = axis
+        self.start_node, self.end_node = start_node_index, end_node_index
         self.height = height
         self.width = width
         self.uncut_polyline = self.get_uncut_polyline()
@@ -15,6 +70,7 @@ class Beam:
         self.xaxis = self.axis.PointAt(0) - self.axis.PointAt(1)
         self.yaxis = rg.Vector3d.CrossProduct(self.xaxis, rg.Vector3d(0, 0, 1))
         self.plane = rg.Plane(self.centroid, self.xaxis, self.yaxis)
+        self.fabricated = False
 
     def get_uncut_polyline(self):
 
@@ -127,24 +183,35 @@ class Beam:
     def get_visual_attached_mesh(self):
         pass
 
+    def to_dict(self):
+        """Serializes the beam into a dictionary format."""
+        return {
+            "id": self.id,
+            "start_node": self.start_node.id,
+            "end_node": self.end_node.id,
+            "axis": {
+                "from": [self.axis.From.X, self.axis.From.Y, self.axis.From.Z],
+                "to": [self.axis.To.X, self.axis.To.Y, self.axis.To.Z]
+            },
+            "height": self.height,
+            "width": self.width,
+            "fabricated": self.fabricated
+        }
+
+    def __repr__(self):
+        return f"Beam(ID={self.id}, Start={self.start_node.id}, End={self.end_node.id})"
+
 
 class Node:
-    def __init__(self, position, beams):
+    def __init__(self, id, position):
 
+        self.id = id
         self.position = position
         self.connected_beams = []
-        self.filter_beams(beams)
 
     def add_beam(self, beam):
 
         self.connected_beams.append(beam)
-
-    def filter_beams(self, all_beams, tolerance=1e-6):
-
-        for beam in all_beams:
-            # Check if either endpoint of the beam's axis is close to the node's position
-            if beam.axis.From.DistanceTo(self.position) < tolerance or beam.axis.To.DistanceTo(self.position) < tolerance:
-                self.add_beam(beam)
 
     def organize_beams(self):
 
@@ -207,3 +274,14 @@ class Node:
                 new_points = [p for p in pol]
                 new_points.append(new_points[0])
                 beam2.cut_polyline = rg.Curve.CreateInterpolatedCurve(new_points, 1)
+
+    def to_dict(self):
+        """Serializes the node into a dictionary format."""
+        return {
+            "id": self.id,
+            "position": [self.position.X, self.position.Y, self.position.Z],
+            "connected_beams": [beam.id for beam in self.connected_beams]
+        }
+
+    def __repr__(self):
+        return f"Node(ID={self.id}, Position={self.position}, Beams={len(self.connected_beams)})"
