@@ -37,7 +37,6 @@ class Truss:
         self.nodes[start_node_index].add_beam(new_beam)
         self.nodes[end_node_index].add_beam(new_beam)
 
-
     def update_cut_geometry(self):
         pass
 
@@ -196,8 +195,8 @@ class Beam:
         """Serializes the beam into a dictionary format."""
         return {
             "id": self.id,
-            "start_node": self.start_node.id,
-            "end_node": self.end_node.id,
+            "start_node": self.start_node,
+            "end_node": self.end_node,
             "axis": {
                 "from": [self.axis.From.X, self.axis.From.Y, self.axis.From.Z],
                 "to": [self.axis.To.X, self.axis.To.Y, self.axis.To.Z]
