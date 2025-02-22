@@ -2,6 +2,7 @@ import Rhino.Geometry as rg
 import math
 import Rhino
 import json
+import os
 
 
 class Truss:
@@ -58,6 +59,47 @@ class Truss:
             print(f"Truss data saved to: {file_path}")
         else:
             return json_data
+
+    @classmethod
+    def from_json(cls, file_path):
+        """Loads a Truss object from a JSON file."""
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"File not found: {file_path}")
+
+        with open(file_path, "r") as file:
+            data = json.load(file)
+
+        truss = cls()
+
+        # Reconstruct nodes
+        node_map = {}  # Maps node ID to actual node objects
+        for node_data in data["nodes"]:
+            position = rg.Point3d(*node_data["position"])
+            node = Node(node_data["id"], position)
+            truss.nodes.append(node)
+            node_map[node_data["id"]] = node  # Store mapping for later use
+
+        # Reconstruct beams
+        for beam_data in data["beams"]:
+            start_node = node_map[beam_data["start_node_index"]]
+            end_node = node_map[beam_data["end_node_index"]]
+            axis = rg.Line(
+                rg.Point3d(*beam_data["axis"]["from"]),
+                rg.Point3d(*beam_data["axis"]["to"]),
+            )
+            beam = Beam(
+                beam_data["id"],
+                beam_data["start_node_index"],
+                beam_data["end_node_index"],
+                axis,
+                beam_data["height"],
+                beam_data["width"],
+            )
+            beam.fabricated = beam_data["fabricated"]  # Restore fabrication status
+            truss.beams.append(beam)
+
+        truss.update_topology()  # Ensure connections are properly restored
+        return truss
 
     def __repr__(self):
         return f"Truss(Nodes={len(self.nodes)}, Beams={len(self.beams)})"
