@@ -37,6 +37,7 @@ class Truss:
         self.nodes[start_node_index].add_beam(new_beam)
         self.nodes[end_node_index].add_beam(new_beam)
 
+
     def update_cut_geometry(self):
         pass
 
@@ -47,9 +48,17 @@ class Truss:
             "beams": [beam.to_dict() for beam in self.beams]
         }
 
-    def to_json(self):
-        """Converts the dictionary representation to a JSON string."""
-        return json.dumps(self.to_dict(), indent=4)
+    def to_json(self, file_path=None):
+        """Converts the dictionary representation to a JSON string or saves it to a file.
+        """
+        json_data = json.dumps(self.to_dict(), indent=4)
+
+        if file_path:
+            with open(file_path, "w") as file:
+                file.write(json_data)
+            print(f"Truss data saved to: {file_path}")
+        else:
+            return json_data
 
     def __repr__(self):
         return f"Truss(Nodes={len(self.nodes)}, Beams={len(self.beams)})"
