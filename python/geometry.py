@@ -81,24 +81,23 @@ class Truss:
 
         # Reconstruct beams
         for beam_data in data["beams"]:
-            start_node = node_map[beam_data["start_node_index"]]
-            end_node = node_map[beam_data["end_node_index"]]
+            start_node = node_map[beam_data["start_node"]]  # Fix: use "start_node" key
+            end_node = node_map[beam_data["end_node"]]      # Fix: use "end_node" key
             axis = rg.Line(
                 rg.Point3d(*beam_data["axis"]["from"]),
                 rg.Point3d(*beam_data["axis"]["to"]),
             )
             beam = Beam(
                 beam_data["id"],
-                beam_data["start_node_index"],
-                beam_data["end_node_index"],
+                start_node.id,  # Fix: Use node ID instead of "start_node_index"
+                end_node.id,    # Fix: Use node ID instead of "end_node_index"
                 axis,
                 beam_data["height"],
                 beam_data["width"],
             )
             beam.fabricated = beam_data["fabricated"]  # Restore fabrication status
-            truss.beams.append(beam)
 
-        truss.update_topology()  # Ensure connections are properly restored
+            truss.beams.append(beam)
         return truss
 
     def __repr__(self):
