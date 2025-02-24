@@ -81,23 +81,23 @@ class Truss:
 
         # Reconstruct beams
         for beam_data in data["beams"]:
-            start_node = node_map[beam_data["start_node"]]  # Fix: use "start_node" key
-            end_node = node_map[beam_data["end_node"]]      # Fix: use "end_node" key
+            start_node = node_map[beam_data["start_node"]]
+            end_node = node_map[beam_data["end_node"]]
             axis = rg.Line(
                 rg.Point3d(*beam_data["axis"]["from"]),
                 rg.Point3d(*beam_data["axis"]["to"]),
             )
             beam = Beam(
                 beam_data["id"],
-                start_node.id,  # Fix: Use node ID instead of "start_node_index"
-                end_node.id,    # Fix: Use node ID instead of "end_node_index"
+                start_node.id,
+                end_node.id,
                 axis,
                 beam_data["height"],
                 beam_data["width"],
             )
             beam.fabricated = beam_data["fabricated"]  # Restore fabrication status
 
-            truss.beams.append(beam)
+            truss.add_beam(beam.axis, beam.height, beam.width)
         return truss
 
     def __repr__(self):
@@ -248,7 +248,7 @@ class Beam:
         }
 
     def __repr__(self):
-        return f"Beam(ID={self.id}, Start={self.start_node.id}, End={self.end_node.id})"
+        return f"Beam(ID={self.id}, Start={self.start_node}, End={self.end_node}, Fabricated={self.fabricated})"
 
 
 class Node:
@@ -257,10 +257,12 @@ class Node:
         self.id = id
         self.position = position
         self.connected_beams = []
+        self.connected_beams_ids = []
 
     def add_beam(self, beam):
 
         self.connected_beams.append(beam)
+        self.connected_beams_ids.append(beam.id)
 
     def organize_beams(self):
 
@@ -275,12 +277,13 @@ class Node:
             angles.append(math.atan2(direction.Y, direction.X))
 
         # Sort connected beams by angle
-        self.connected_beams = [x for _, x in sorted(zip(angles, self.connected_beams))]
+        return [x for _, x in sorted(zip(angles, self.connected_beams))]
 
     def cut_beams(self):
 
-        for i, beam1 in enumerate(self.connected_beams):
-            beam2 = self.connected_beams[(i+1)%len(self.connected_beams)]
+        organized_beams = self.organize_beams()
+        for i, beam1 in enumerate(organized_beams):
+            beam2 = organized_beams[(i+1)%len(organized_beams)]
             events = rg.Intersect.Intersection.CurveCurve(
                 beam1.cut_polyline, beam2.cut_polyline, 1e-6, 1e-6
             )
@@ -329,8 +332,8 @@ class Node:
         return {
             "id": self.id,
             "position": [self.position.X, self.position.Y, self.position.Z],
-            "connected_beams": [beam.id for beam in self.connected_beams]
+            "connected_beams_ids": [id for id in self.connected_beams_ids]
         }
 
     def __repr__(self):
-        return f"Node(ID={self.id}, Position={self.position}, Beams={len(self.connected_beams)})"
+        return f"Node(ID={self.id}, Position={self.position}, connected_beams_ids={self.connected_beams_ids})"
