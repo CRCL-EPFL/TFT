@@ -177,6 +177,8 @@ def process_video(camera: int, crop_coords: List[Tuple[int, int]]):
         centerlines = get_centerlines(wood_contours)
         
         result = cropped.copy()
+
+        woodPieces = []
         
         # Draw contours and dimensions
         for cnt in wood_contours:
@@ -193,8 +195,18 @@ def process_video(camera: int, crop_coords: List[Tuple[int, int]]):
                 width_cm, height_cm = height_cm, width_cm
             
             x, y, w, h = cv2.boundingRect(cnt)
-            text_x = x + w//2  # center of bounding box
-            text_y = y + h//2  # center of bounding box
+            center = (x + w//2, y + h//2)
+            text_x = center[0]  # center of bounding box
+            text_y = center[1]  # center of bounding box
+
+            # Create wood piece info dictionary
+            wood_piece = {
+                'corners': box.tolist(),  # Convert numpy array to list for better serialization
+                'center': center,
+                'width': width_cm,
+                'height': height_cm
+            }
+            woodPieces.append(wood_piece)
             
             dimensions_text = f"{width_cm:.1f} x {height_cm:.1f} cm"
             
