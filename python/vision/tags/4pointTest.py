@@ -129,7 +129,6 @@ with RosClient(host='128.179.183.208', port=9090) as client:
 
         out.write(transformedFrame)
         
-        
         message_data = json.dumps(allCorners)
         talker.publish(Message({'data': message_data}))
         print('Sending message %s' % message_data)

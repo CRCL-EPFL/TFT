@@ -1,8 +1,22 @@
 import cv2
 import numpy as np
 from typing import List, Tuple
+import json
+from roslibpy import Message
+from roslibpy import Topic
+
+from compas_fab.backends import RosClient
+DIM=(3840, 2160)
+K=np.array([[2113.8978121575183, 0.0, 1940.3860532394276], [0.0, 2111.3353714795057, 1078.7327869431792], [0.0, 0.0, 1.0]])
+D=np.array([[-0.03787467518808117], [0.0846315868116808], [-0.1264491080629783], [0.056945996640635654]])
+
+# Store map results
+map1, map2 = cv2.fisheye.initUndistortRectifyMap(K, D, np.eye(3), K, DIM, cv2.CV_16SC2)
 
 def crop_frame(frame: np.ndarray, coords: List[Tuple[int, int]]) -> np.ndarray:
+
+    undistorted_img = cv2.remap(frame, map1, map2, interpolation=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
+    resize_img = cv2.resize(undistorted_img, (3840, 2160))   
 
     # Convert coordinates to numpy array
     pts = np.array(coords, dtype=np.float32)
@@ -27,7 +41,10 @@ def crop_frame(frame: np.ndarray, coords: List[Tuple[int, int]]) -> np.ndarray:
     
     matrix = cv2.getPerspectiveTransform(pts, dst_pts)
     
-    result = cv2.warpPerspective(frame, matrix, (int(width), int(height)))
+    result = cv2.warpPerspective(resize_img, matrix, (int(width), int(height)))
+
+    cv2.imshow('Pre-Crop', resize_img)
+    cv2.imshow('Crop', result)
     
     return result
 
@@ -90,7 +107,7 @@ def segment_wood(frame: np.ndarray) -> List[np.ndarray]:
                 wood_contours.append(cnt)
     
     # Show debug image
-    cv2.imshow('Debug - Contour Analysis', debug_image)
+    cv2.imshow('Debug - Contours', debug_image)
     cv2.imshow('Threshold', thresh)
     
     return wood_contours
@@ -135,7 +152,16 @@ def process_video(camera: int, crop_coords: List[Tuple[int, int]]):
     """
     Main function to process video
     """
-    cap = cv2.VideoCapture(camera)
+    cap = cv2.VideoCapture(camera, cv2.CAP_DSHOW)
+
+    # Set resolution to 4K (3840x2160)
+    width = 3840
+    height = 2160
+    # width = 1920
+    # height = 1080
+    cap.set(cv2.CAP_PROP_FPS, 30)  # Request 30 FPS from camera
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, width)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, height)
 
     # Get video properties for output video
     frame_width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -164,77 +190,86 @@ def process_video(camera: int, crop_coords: List[Tuple[int, int]]):
         np.linalg.norm(pts[2] - pts[3])   # bottom width
     )
     PIXELS_TO_CM = 160.0 / width_pixels  # 160 cm is the known width
-    
-    while True:
-        ret, frame = cap.read()
-        if not ret:
-            break
-            
-        cropped = crop_frame(frame, crop_coords)
-        
-        wood_contours = segment_wood(cropped)
-        
-        centerlines = get_centerlines(wood_contours)
-        
-        result = cropped.copy()
 
-        woodPieces = []
-        
-        # Draw contours and dimensions
-        for cnt in wood_contours:
-            cv2.drawContours(result, [cnt], -1, (0, 255, 0), 2)
+    with RosClient(host='localhost', port=9090) as client:
+        talker = Topic(client, '/chatter', 'std_msgs/String')
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+                
+            cropped = crop_frame(frame, crop_coords)
             
-            rect = cv2.minAreaRect(cnt)
-            box = cv2.boxPoints(rect)
-            box = np.int8(box)
+            wood_contours = segment_wood(cropped)
             
-            width_cm = rect[1][0] * PIXELS_TO_CM
-            height_cm = rect[1][1] * PIXELS_TO_CM
+            centerlines = get_centerlines(wood_contours)
             
-            if width_cm < height_cm:
-                width_cm, height_cm = height_cm, width_cm
-            
-            x, y, w, h = cv2.boundingRect(cnt)
-            center = (x + w//2, y + h//2)
-            text_x = center[0]  # center of bounding box
-            text_y = center[1]  # center of bounding box
+            result = cropped.copy()
 
-            # Create wood piece info dictionary
-            wood_piece = {
-                'corners': box.tolist(),  # Convert numpy array to list for better serialization
-                'center': center,
-                'width': width_cm,
-                'height': height_cm
-            }
-            woodPieces.append(wood_piece)
+            woodPieces = []
             
-            dimensions_text = f"{width_cm:.1f} x {height_cm:.1f} cm"
-            
-            font = cv2.FONT_HERSHEY_SIMPLEX
-            font_scale = 0.7
-            thickness = 2
-            (text_width, text_height), _ = cv2.getTextSize(dimensions_text, font, font_scale, thickness)
-            
-            # Adjust position to ensure text is within frame
-            text_x = min(max(text_x, text_width//2), result.shape[1] - text_width//2)
-            text_y = min(max(text_y, text_height), result.shape[0] - 10)
-            
-            # Display dimensions with background for better visibility
-            cv2.putText(result, dimensions_text, 
-                       (int(text_x - text_width//2), int(text_y)),
-                       font, font_scale, (0, 0, 255), thickness)
-        
-        # Draw centerlines
-        for centerline, angle in centerlines:
-            cv2.line(result, tuple(centerline[0]), tuple(centerline[1]), (0, 0, 255), 2)
-        
-        out.write(result)
+            # Draw contours and dimensions
+            for cnt in wood_contours:
+                cv2.drawContours(result, [cnt], -1, (0, 255, 0), 2)
+                
+                rect = cv2.minAreaRect(cnt)
+                box = cv2.boxPoints(rect)
+                box = np.int8(box)
+                
+                width_cm = rect[1][0] * PIXELS_TO_CM
+                height_cm = rect[1][1] * PIXELS_TO_CM
+                
+                if width_cm < height_cm:
+                    width_cm, height_cm = height_cm, width_cm
+                
+                x, y, w, h = cv2.boundingRect(cnt)
+                center = (x + w//2, y + h//2)
+                text_x = center[0]  # center of bounding box
+                text_y = center[1]  # center of bounding box
 
-        # Show result
-        cv2.imshow('Processed Frame', result)
+                # Create wood piece info dictionary
+                wood_piece = {
+                    'corners': box.tolist(),  # Convert numpy array to list for better serialization
+                    'center': center,
+                    'width': width_cm,
+                    'height': height_cm
+                }
+                woodPieces.append(wood_piece)
+                
+                dimensions_text = f"{width_cm:.1f} x {height_cm:.1f} cm"
+                
+                font = cv2.FONT_HERSHEY_SIMPLEX
+                font_scale = 0.7
+                thickness = 2
+                (text_width, text_height), _ = cv2.getTextSize(dimensions_text, font, font_scale, thickness)
+                
+                # Adjust position to ensure text is within frame
+                text_x = min(max(text_x, text_width//2), result.shape[1] - text_width//2)
+                text_y = min(max(text_y, text_height), result.shape[0] - 10)
+                
+                # Display dimensions with background for better visibility
+                cv2.putText(result, dimensions_text, 
+                        (int(text_x - text_width//2), int(text_y)),
+                        font, font_scale, (0, 0, 255), thickness)
+            
+            # Draw centerlines
+            for centerline, angle in centerlines:
+                cv2.line(result, tuple(centerline[0]), tuple(centerline[1]), (0, 0, 255), 2)
+            
+            # out.write(result)
+
+            message_data = json.dumps(woodPieces)
+            talker.publish(Message({'data': message_data}))
+            print('Sending message %s' % message_data)
         
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+
+            talker.unadvertise()
+
+            # Show result
+            cv2.imshow('Processed Frame', result)
+            
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
     
     cap.release()
     # out.release()
@@ -248,5 +283,5 @@ if __name__ == "__main__":
         (1201, 1379)
     ]
     
-    video_path = "overhead4KBlackBG.mp4"
-    process_video(video_path, crop_coords)
+    # video_path = "overhead4KBlackBG.mp4"
+    process_video(1, crop_coords)
