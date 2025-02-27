@@ -18,7 +18,7 @@ class Truss:
         self.nodes.append(new_node)
         return new_node
 
-    def add_beam(self, axis, height, width):
+    def add_beam(self, axis, height, width, isnew = False):
         """Creates a beam between two existing nodes and adds it to the truss."""
 
         tolerance = 1e-6
@@ -31,15 +31,17 @@ class Truss:
             if axis.To.DistanceTo(node.position) < tolerance:
                 end_node_index = i
 
-        new_beam = Beam(len(self.beams), start_node_index, end_node_index, axis, height, width)
+        new_beam = Beam(len(self.beams), start_node_index, end_node_index, axis, height, width, isnew)
 
         self.beams.append(new_beam)
 
         self.nodes[start_node_index].add_beam(new_beam)
         self.nodes[end_node_index].add_beam(new_beam)
+    
+    def cut_all_beams(self):
 
-    def update_cut_geometry(self):
-        pass
+        for n in self.nodes:
+            n.cut_beams()
 
     def to_dict(self):
         """Serializes the truss into a dictionary format."""
@@ -76,6 +78,7 @@ class Truss:
         for node_data in data["nodes"]:
             position = rg.Point3d(*node_data["position"])
             node = Node(node_data["id"], position)
+            node.has_moved = node_data.get("has_moved", False)
             truss.nodes.append(node)
             node_map[node_data["id"]] = node  # Store mapping for later use
 
@@ -94,8 +97,10 @@ class Truss:
                 axis,
                 beam_data["height"],
                 beam_data["width"],
+                beam_data.get("is_new", False),
             )
-            beam.fabricated = beam_data["fabricated"]  # Restore fabrication status
+            beam.fabricated = beam_data["fabricated"]
+            beam.reference_width = beam_data["reference_width"]
 
             truss.add_beam(beam.axis, beam.height, beam.width)
         return truss
@@ -105,7 +110,7 @@ class Truss:
 
 
 class Beam:
-    def __init__(self, id, start_node_index, end_node_index, axis, height, width):
+    def __init__(self, id, start_node_index, end_node_index, axis, height, width, isnew = False):
 
         self.id = id
         # a line defining the main axis of the beam
@@ -113,6 +118,7 @@ class Beam:
         self.start_node, self.end_node = start_node_index, end_node_index
         self.height = height
         self.width = width
+        self.reference_width = width
         self.uncut_polyline = self.get_uncut_polyline()
         self.cut_polyline = self.uncut_polyline
         self.centroid = rg.AreaMassProperties.Compute(self.uncut_polyline.ToNurbsCurve()).Centroid
@@ -120,6 +126,7 @@ class Beam:
         self.yaxis = rg.Vector3d.CrossProduct(self.xaxis, rg.Vector3d(0, 0, 1))
         self.plane = rg.Plane(self.centroid, self.xaxis, self.yaxis)
         self.fabricated = False
+        self.is_new = isnew
 
     def get_uncut_polyline(self):
 
@@ -244,7 +251,9 @@ class Beam:
             },
             "height": self.height,
             "width": self.width,
-            "fabricated": self.fabricated
+            "fabricated": self.fabricated,
+            "is_new": self.is_new,
+            "reference_width": self.reference_width
         }
 
     def __repr__(self):
@@ -258,6 +267,7 @@ class Node:
         self.position = position
         self.connected_beams = []
         self.connected_beams_ids = []
+        self.has_moved = False
 
     def add_beam(self, beam):
 
@@ -280,6 +290,12 @@ class Node:
         return [x for _, x in sorted(zip(angles, self.connected_beams))]
 
     def cut_beams(self):
+
+        """Possible updates:
+                        1. the width of the beam is different from the reference width
+                        2. a new beam was introduced
+                        3. a node was moved
+                        4. a beam was deleted """
 
         organized_beams = self.organize_beams()
         for i, beam1 in enumerate(organized_beams):
@@ -332,8 +348,9 @@ class Node:
         return {
             "id": self.id,
             "position": [self.position.X, self.position.Y, self.position.Z],
-            "connected_beams_ids": [id for id in self.connected_beams_ids]
+            "connected_beams_ids": [id for id in self.connected_beams_ids],
+            "has_moved": self.has_moved
         }
 
     def __repr__(self):
-        return f"Node(ID={self.id}, Position={self.position}, connected_beams_ids={self.connected_beams_ids})"
+        return f"Node(ID={self.id}, Position={self.position}, connected_beams_ids={self.connected_beams_ids}, has_moved={self.has_moved})"
