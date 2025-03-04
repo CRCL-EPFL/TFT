@@ -1,6 +1,9 @@
 import cv2
 import numpy as np
 from typing import List, Tuple
+import json
+from roslibpy import Message
+from roslibpy import Topic
 
 def crop_frame(frame: np.ndarray, coords: List[Tuple[int, int]]) -> np.ndarray:
 
@@ -165,64 +168,74 @@ def process_video(video_path: str, crop_coords: List[Tuple[int, int]]):
     )
     PIXELS_TO_CM = 160.0 / width_pixels  # 160 cm is the known width
     
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
-            
-        cropped = crop_frame(frame, crop_coords)
-        
-        wood_contours = segment_wood(cropped)
-        
-        centerlines = get_centerlines(wood_contours)
-        
-        result = cropped.copy()
-        
-        # Draw contours and dimensions
-        for cnt in wood_contours:
-            cv2.drawContours(result, [cnt], -1, (0, 255, 0), 2)
-            
-            rect = cv2.minAreaRect(cnt)
-            box = cv2.boxPoints(rect)
-            box = np.int8(box)
-            
-            width_cm = rect[1][0] * PIXELS_TO_CM
-            height_cm = rect[1][1] * PIXELS_TO_CM
-            
-            if width_cm < height_cm:
-                width_cm, height_cm = height_cm, width_cm
-            
-            x, y, w, h = cv2.boundingRect(cnt)
-            text_x = x + w//2  # center of bounding box
-            text_y = y + h//2  # center of bounding box
-            
-            dimensions_text = f"{width_cm:.1f} x {height_cm:.1f} cm"
-            
-            font = cv2.FONT_HERSHEY_SIMPLEX
-            font_scale = 0.7
-            thickness = 2
-            (text_width, text_height), _ = cv2.getTextSize(dimensions_text, font, font_scale, thickness)
-            
-            # Adjust position to ensure text is within frame
-            text_x = min(max(text_x, text_width//2), result.shape[1] - text_width//2)
-            text_y = min(max(text_y, text_height), result.shape[0] - 10)
-            
-            # Display dimensions with background for better visibility
-            cv2.putText(result, dimensions_text, 
-                       (int(text_x - text_width//2), int(text_y)),
-                       font, font_scale, (0, 0, 255), thickness)
-        
-        # Draw centerlines
-        for centerline, angle in centerlines:
-            cv2.line(result, tuple(centerline[0]), tuple(centerline[1]), (0, 0, 255), 2)
-        
-        out.write(result)
 
-        # Show result
-        cv2.imshow('Processed Frame', result)
+    with RosClient(host='localhost', port=9090) as client:
+        talker = Topic(client, '/chatter', 'std_msgs/String')
+        while cap.isOpened():
+            ret, frame = cap.read()
+            if not ret:
+                break
+                
+            cropped = crop_frame(frame, crop_coords)
+            
+            wood_contours = segment_wood(cropped)
+            
+            centerlines = get_centerlines(wood_contours)
+            
+            result = cropped.copy()
+            
+            # Draw contours and dimensions
+            for cnt in wood_contours:
+                cv2.drawContours(result, [cnt], -1, (0, 255, 0), 2)
+                
+                rect = cv2.minAreaRect(cnt)
+                box = cv2.boxPoints(rect)
+                box = np.int8(box)
+                
+                width_cm = rect[1][0] * PIXELS_TO_CM
+                height_cm = rect[1][1] * PIXELS_TO_CM
+                
+                if width_cm < height_cm:
+                    width_cm, height_cm = height_cm, width_cm
+                
+                x, y, w, h = cv2.boundingRect(cnt)
+                text_x = x + w//2  # center of bounding box
+                text_y = y + h//2  # center of bounding box
+                
+                dimensions_text = f"{width_cm:.1f} x {height_cm:.1f} cm"
+                
+                font = cv2.FONT_HERSHEY_SIMPLEX
+                font_scale = 0.7
+                thickness = 2
+                (text_width, text_height), _ = cv2.getTextSize(dimensions_text, font, font_scale, thickness)
+                
+                # Adjust position to ensure text is within frame
+                text_x = min(max(text_x, text_width//2), result.shape[1] - text_width//2)
+                text_y = min(max(text_y, text_height), result.shape[0] - 10)
+                
+                # Display dimensions with background for better visibility
+                cv2.putText(result, dimensions_text, 
+                        (int(text_x - text_width//2), int(text_y)),
+                        font, font_scale, (0, 0, 255), thickness)
+            
+            # Draw centerlines
+            for centerline, angle in centerlines:
+                cv2.line(result, tuple(centerline[0]), tuple(centerline[1]), (0, 0, 255), 2)
         
-        if cv2.waitKey(1) & 0xFF == ord('q'):
-            break
+            # Save result
+            # out.write(result)
+
+            message_data = json.dumps(woodPieces)
+            talker.publish(Message({'data': message_data}))
+            print('Sending message %s' % message_data)
+
+            talker.unadvertise()
+
+            # Show result
+            cv2.imshow('Processed Frame', result)
+            
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
     
     cap.release()
     out.release()

@@ -110,6 +110,9 @@ class ofApp : public ofBaseApp{
 		// Screen size in meters
 		const float SCREEN_WIDTH = 2.490;
 		const float SCREEN_HEIGHT = 1.560;
+		
+		// Path to JSON file for nodes
+		static const string dataPath;
 
 		vector<Tag> tags;
 
