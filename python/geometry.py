@@ -46,33 +46,6 @@ class Truss:
         for n in self.nodes:
             n.cut_beams()
 
-    def update_all_cuts(self):
-        """Updates cut_geometry if:
-                    1. The width of the beam is different from the reference width
-                    2. A new beam was introduced
-                    3. A node moved
-                    4. A beam was deleted""" # not implemented
-
-        # Set to store affected nodes that need to be revisited
-        affected_nodes = set()
-
-        # Check for width changes or new beams
-        for beam in self.beams:
-            if beam.width != beam.reference_width or beam.is_new:
-                affected_nodes.add(beam.start_node)  # Start node affected
-                affected_nodes.add(beam.end_node)  # End node affected
-
-        # Check for moved nodes
-        for node in self.nodes:
-            if node.has_moved:
-                affected_nodes.add(node.id)
-
-        # Apply cut updates to affected nodes
-        for idx in affected_nodes:
-            self.nodes[idx].cut_beams()
-
-        self.helper = affected_nodes
-
     def to_dict(self):
         """Serializes the truss into a dictionary format."""
         return {
