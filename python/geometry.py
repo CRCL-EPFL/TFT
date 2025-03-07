@@ -288,23 +288,54 @@ class Node:
             else:
                 direction = beam.axis.From - self.position
 
+            beam.axis = rg.Line(self.position, direction)
+
             # Calculate angle using atan2
             angles.append(math.atan2(direction.Y, direction.X))
 
         # Sort connected beams by angle
         return [x for _, x in sorted(zip(angles, self.connected_beams))]
+    
+    def cut_beamA_with_beamB(self, beam1, beam2, cutting_points):
+
+        # cut beam1
+        if not beam1.fabricated:
+            beam1.cut_polyline.Domain = rg.Interval(0,1)
+            par = [beam1.cut_polyline.ClosestPoint(p)[1] for p in cutting_points]
+            split = beam1.cut_polyline.Split(par)
+
+            if split[0].GetLength() > split[1].GetLength():
+                beam1.cut_polyline = split[0]
+            else:
+                beam1.cut_polyline = split[1]
+
+            # close curve
+            pol = beam1.cut_polyline.TryGetPolyline()[1]
+            new_points = [p for p in pol]
+            new_points.append(new_points[0])
+            beam1.cut_polyline = rg.Curve.CreateInterpolatedCurve(new_points, 1)
+
+            # if the other beam is already fabricated and if the current width is larger than the reference_width
+            if beam2.fabricated and beam1.width > beam1.reference_width:
+                # find the already fabricated corner and add it
+                candidate_points = [p for p in beam2.cut_polyline.ToPolyline()]
+                for pt in candidate_points:
+                    if beam1.cut_polyline.Contains(pt, rg.Plane.WorldXY, 1e-6) == rg.PointContainment.Inside:
+                        new_points = new_points[:-1] + [pt] + new_points[-1:]
+                        beam1.cut_polyline = rg.Curve.CreateInterpolatedCurve(new_points, 1)
 
     def cut_beams(self):
-
-        """Possible updates:
-                        1. the width of the beam is different from the reference width
-                        2. a new beam was introduced
-                        3. a node was moved
-                        4. a beam was deleted """
+        self.helper = []
 
         organized_beams = self.organize_beams()
         for i, beam1 in enumerate(organized_beams):
+            
             beam2 = organized_beams[(i+1) % len(organized_beams)]
+
+            pt_beam1 = beam1.axis.PointAtLength(0.05)
+            dir_beam1 = pt_beam1 - self.position
+            pt_beam2 = beam2.axis.PointAtLength(0.05)
+            dir_beam2 = pt_beam2 - self.position
 
             events = rg.Intersect.Intersection.CurveCurve(
                 beam1.cut_polyline, beam2.cut_polyline, 1e-6, 1e-6
@@ -312,60 +343,64 @@ class Node:
 
             if events.Count >= 2:
                 intersection_points = [event.PointA for event in events]
+
                 # we want the point that is furthest from the node
                 furthest_point = max(intersection_points, key=lambda pt: pt.DistanceTo(self.position))
-
+                cutting_points = [self.position, furthest_point]
                 # cut beam1
-                if not beam1.fabricated:
-                    beam1.cut_polyline.Domain = rg.Interval(0,1)
-                    par = [beam1.cut_polyline.ClosestPoint(self.position)[1], beam1.cut_polyline.ClosestPoint(furthest_point)[1] ]
-                    split = beam1.cut_polyline.Split(par)
-
-                    if split[0].GetLength() > split[1].GetLength():
-                        beam1.cut_polyline = split[0]
-                    else:
-                        beam1.cut_polyline = split[1]
-
-                    # close curve
-                    pol = beam1.cut_polyline.TryGetPolyline()[1]
-                    new_points = [p for p in pol]
-                    new_points.append(new_points[0])
-                    beam1.cut_polyline = rg.Curve.CreateInterpolatedCurve(new_points, 1)
-
-                    # if the other beam is already fabricated and if the current width is larger than the reference_width
-                    if beam2.fabricated and beam1.width > beam1.reference_width:
-                        # find the already fabricated corner and add it
-                        candidate_points = [p for p in beam2.cut_polyline.ToPolyline()]
-                        for pt in candidate_points:
-                            if beam1.cut_polyline.Contains(pt, rg.Plane.WorldXY, 1e-6) == rg.PointContainment.Inside:
-                                new_points = new_points[:-1] + [pt] + new_points[-1:]
-                                beam1.cut_polyline = rg.Curve.CreateInterpolatedCurve(new_points, 1)
+                self.cut_beamA_with_beamB(beam1, beam2, cutting_points)
 
                 # cut beam2
-                if not beam2.fabricated:
-                    beam2.cut_polyline.Domain = rg.Interval(0,1)
-                    par = [beam2.cut_polyline.ClosestPoint(self.position)[1], beam2.cut_polyline.ClosestPoint(furthest_point)[1] ]
-                    split = beam2.cut_polyline.Split(par)
+                self.cut_beamA_with_beamB(beam2, beam1, cutting_points)
 
-                    if split[0].GetLength() > split[1].GetLength():
-                        beam2.cut_polyline = split[0]
-                    else:
-                        beam2.cut_polyline = split[1]
+        #fix those that have >180 degrees angle
+        for i, beam1 in enumerate(organized_beams):
 
-                    # close curve
-                    pol = beam2.cut_polyline.TryGetPolyline()[1]
-                    new_points = [p for p in pol]
-                    new_points.append(new_points[0])
-                    beam2.cut_polyline = rg.Curve.CreateInterpolatedCurve(new_points, 1)
+            beam2 = organized_beams[(i+1) % len(organized_beams)]
 
-                    # if the other beam is already fabricated and if the current width is larger than the reference_width
-                    if beam1.fabricated and beam2.width > beam2.reference_width:
-                        # find the already fabricated corner and add it
-                        candidate_points = [p for p in beam1.cut_polyline.ToPolyline()]
-                        for pt in candidate_points:
-                            if beam2.cut_polyline.Contains(pt, rg.Plane.WorldXY, 1e-6) == rg.PointContainment.Inside:
-                                new_points = new_points[:-1] + [pt] + new_points[-1:]
-                                beam2.cut_polyline = rg.Curve.CreateInterpolatedCurve(new_points, 1)
+            pt_beam1 = beam1.axis.PointAtLength(0.05)
+            dir_beam1 = pt_beam1 - self.position
+            pt_beam2 = beam2.axis.PointAtLength(0.05)
+            dir_beam2 = pt_beam2 - self.position
+
+            if math.degrees(rg.Vector3d.VectorAngle(dir_beam1, dir_beam2, rg.Plane.WorldXY))> 180:
+                
+                bisector_direction = (pt_beam1 + pt_beam2) / 2 - self.position
+                bisector_line = rg.Line(self.position, self.position - bisector_direction * 10)
+                
+                # Find the second closest point to self.position on beam1's cut polyline
+                polyline_points = [p for p in beam1.cut_polyline.ToPolyline()]
+                polyline_points.sort(key=lambda pt: pt.DistanceTo(self.position))
+                second_closest_point = polyline_points[2]
+                
+                # Project this point along dir_beam1
+                start = second_closest_point
+                end = second_closest_point - 0.25 * (dir_beam1/dir_beam1.Length)
+                line = rg.Line(start, end)
+                par = rg.Intersect.Intersection.LineLine(line, bisector_line)[1]
+                projected_point = line.PointAt(par)
+                # Update the point's location in the polyline
+                polyline_points = [p for p in beam1.cut_polyline.ToPolyline()]
+                index = polyline_points.index(second_closest_point)
+                polyline_points = polyline_points[:index] + [projected_point] + polyline_points[index+1:]
+                
+                # Update beam1.cut_polyline
+                beam1.cut_polyline = rg.Curve.CreateInterpolatedCurve(polyline_points, 1)
+
+                # Find the second closest point to self.position on beam2's cut polyline
+                polyline_points = [p for p in beam2.cut_polyline.ToPolyline()]
+                polyline_points.sort(key=lambda pt: pt.DistanceTo(self.position))
+                second_closest_point = polyline_points[1]
+                self.helper = second_closest_point
+
+                #Update the point's location in the polyline
+                polyline_points = [p for p in beam2.cut_polyline.ToPolyline()]
+                index = polyline_points.index(second_closest_point)
+                polyline_points = polyline_points[:index] + [projected_point] + polyline_points[index+1:]
+                
+                # Update beam1.cut_polyline
+                beam2.cut_polyline = rg.Curve.CreateInterpolatedCurve(polyline_points, 1)
+
 
     def to_dict(self):
         """Serializes the node into a dictionary format."""
