@@ -344,6 +344,26 @@ class Node:
         self.connected_beams.append(beam)
         self.connected_beams_ids.append(beam.id)
 
+    def move_node(self, new_position):
+        old_position = self.position
+        self.position = new_position
+        self.has_moved = True
+
+        for beam in self.connected_beams:
+            if beam.axis.From.DistanceTo(old_position) < 1e-6:
+                beam.axis = rg.Line(new_position, beam.axis.To)
+            else:
+                beam.axis = rg.Line(beam.axis.From, new_position)
+
+            # Update beam geometry
+            beam.uncut_polyline = beam.get_uncut_polyline()
+
+            # Update beam centroid and plane
+            beam.centroid = rg.AreaMassProperties.Compute(beam.uncut_polyline.ToNurbsCurve()).Centroid
+            beam.xaxis = beam.axis.PointAt(0) - beam.axis.PointAt(1)
+            beam.yaxis = rg.Vector3d.CrossProduct(beam.xaxis, rg.Vector3d(0, 0, 1))
+            beam.plane = rg.Plane(beam.centroid, beam.xaxis, beam.yaxis)
+
     def organize_beams(self):
 
         angles = []
