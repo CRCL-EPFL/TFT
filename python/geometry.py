@@ -14,8 +14,13 @@ class Truss:
     def add_node(self, position):
         """Adds a node"""
 
+        for node in self.nodes:
+            if node.position.DistanceTo(position) < 1e-6:
+                return node  # Return existing node if within tolerance
+
         new_node = Node(len(self.nodes), position)
         self.nodes.append(new_node)
+        
         return new_node
 
     def add_beam(self, axis, height, width, isnew=False, fabricated = False):
@@ -30,6 +35,11 @@ class Truss:
                 start_node_index = i
             if axis.To.DistanceTo(node.position) < tolerance:
                 end_node_index = i
+
+        # Check if a beam already exists between these nodes (considering both directions)
+        for beam in self.beams:
+            if ({beam.start_node, beam.end_node} == {start_node_index, end_node_index}):
+                return beam  # Return the existing beam if found
 
         new_beam = Beam(len(self.beams), start_node_index, end_node_index, axis, height, width, isnew, fabricated)
 
@@ -296,46 +306,46 @@ class Node:
         # Sort connected beams by angle
         return [x for _, x in sorted(zip(angles, self.connected_beams))]
     
-    def cut_beamA_with_beamB(self, beam1, beam2, cutting_points):
+    def cut_beam_with_other_beam(self, beam1, beam2, cutting_points):
 
         # cut beam1
-        if not beam1.fabricated:
-            beam1.cut_polyline.Domain = rg.Interval(0,1)
-            par = [beam1.cut_polyline.ClosestPoint(p)[1] for p in cutting_points]
-            split = beam1.cut_polyline.Split(par)
+        if beam1.fabricated:
+            return
+        
+        beam1.cut_polyline.Domain = rg.Interval(0,1)
+        par = [beam1.cut_polyline.ClosestPoint(p)[1] for p in cutting_points]
+        split_curves = beam1.cut_polyline.Split(par)
 
-            if split[0].GetLength() > split[1].GetLength():
-                beam1.cut_polyline = split[0]
-            else:
-                beam1.cut_polyline = split[1]
+        #select the longer segment
+        if split_curves[0].GetLength() > split_curves[1].GetLength():
+            beam1.cut_polyline = split_curves[0]
+        else:
+            beam1.cut_polyline = split_curves[1]
 
-            # close curve
-            pol = beam1.cut_polyline.TryGetPolyline()[1]
-            new_points = [p for p in pol]
-            new_points.append(new_points[0])
-            beam1.cut_polyline = rg.Curve.CreateInterpolatedCurve(new_points, 1)
+        # close curve
+        pol = beam1.cut_polyline.TryGetPolyline()[1]
+        new_points = [p for p in pol]
+        new_points.append(new_points[0])
+        beam1.cut_polyline = rg.Curve.CreateInterpolatedCurve(new_points, 1)
 
-            # if the other beam is already fabricated and if the current width is larger than the reference_width
-            if beam2.fabricated and beam1.width > beam1.reference_width:
-                # find the already fabricated corner and add it
-                candidate_points = [p for p in beam2.cut_polyline.ToPolyline()]
-                for pt in candidate_points:
-                    if beam1.cut_polyline.Contains(pt, rg.Plane.WorldXY, 1e-6) == rg.PointContainment.Inside:
-                        new_points = new_points[:-1] + [pt] + new_points[-1:]
-                        beam1.cut_polyline = rg.Curve.CreateInterpolatedCurve(new_points, 1)
+        # if the other beam is already fabricated and if the current width is larger than the reference_width
+        if beam2.fabricated and (beam1.width > beam1.reference_width or beam1.is_new):
+            # find the already fabricated corner and add it
+            candidate_points = [p for p in beam2.cut_polyline.ToPolyline()]
+            for pt in candidate_points:
+                if beam1.cut_polyline.Contains(pt, rg.Plane.WorldXY, 1e-6) == rg.PointContainment.Inside:
+                    new_points = new_points[:-1] + [pt] + new_points[-1:]
+                    beam1.cut_polyline = rg.Curve.CreateInterpolatedCurve(new_points, 1)
 
     def cut_beams(self):
-        self.helper = []
 
         organized_beams = self.organize_beams()
         for i, beam1 in enumerate(organized_beams):
             
             beam2 = organized_beams[(i+1) % len(organized_beams)]
 
-            pt_beam1 = beam1.axis.PointAtLength(0.05)
-            dir_beam1 = pt_beam1 - self.position
-            pt_beam2 = beam2.axis.PointAtLength(0.05)
-            dir_beam2 = pt_beam2 - self.position
+            dir_beam1 = beam1.axis.PointAtLength(0.05) - self.position
+            dir_beam2 = beam2.axis.PointAtLength(0.05) - self.position
 
             events = rg.Intersect.Intersection.CurveCurve(
                 beam1.cut_polyline, beam2.cut_polyline, 1e-6, 1e-6
@@ -348,10 +358,9 @@ class Node:
                 furthest_point = max(intersection_points, key=lambda pt: pt.DistanceTo(self.position))
                 cutting_points = [self.position, furthest_point]
                 # cut beam1
-                self.cut_beamA_with_beamB(beam1, beam2, cutting_points)
-
+                self.cut_beam_with_other_beam(beam1, beam2, cutting_points)
                 # cut beam2
-                self.cut_beamA_with_beamB(beam2, beam1, cutting_points)
+                self.cut_beam_with_other_beam(beam2, beam1, cutting_points)
 
         #fix those that have >180 degrees angle
         for i, beam1 in enumerate(organized_beams):
@@ -371,7 +380,7 @@ class Node:
                 # Find the second closest point to self.position on beam1's cut polyline
                 polyline_points = [p for p in beam1.cut_polyline.ToPolyline()]
                 polyline_points.sort(key=lambda pt: pt.DistanceTo(self.position))
-                second_closest_point = polyline_points[2]
+                second_closest_point = next(pt for pt in polyline_points[1:] if not pt.DistanceTo(polyline_points[0]) < 1e-6)
                 
                 # Project this point along dir_beam1
                 start = second_closest_point
@@ -379,6 +388,7 @@ class Node:
                 line = rg.Line(start, end)
                 par = rg.Intersect.Intersection.LineLine(line, bisector_line)[1]
                 projected_point = line.PointAt(par)
+
                 # Update the point's location in the polyline
                 polyline_points = [p for p in beam1.cut_polyline.ToPolyline()]
                 index = polyline_points.index(second_closest_point)
@@ -390,7 +400,7 @@ class Node:
                 # Find the second closest point to self.position on beam2's cut polyline
                 polyline_points = [p for p in beam2.cut_polyline.ToPolyline()]
                 polyline_points.sort(key=lambda pt: pt.DistanceTo(self.position))
-                second_closest_point = polyline_points[1]
+                second_closest_point = next(pt for pt in polyline_points[1:] if not pt.DistanceTo(polyline_points[0]) < 1e-6)
                 self.helper = second_closest_point
 
                 #Update the point's location in the polyline
