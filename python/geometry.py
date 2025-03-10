@@ -63,6 +63,7 @@ class Truss:
                 beam.cut_polyline = beam.uncut_polyline
         for n in self.nodes:
             n.cut_beams()
+            
 
     def to_dict(self):
         """Serializes the truss into a dictionary format."""
@@ -345,6 +346,7 @@ class Node:
         self.connected_beams_ids.append(beam.id)
 
     def move_node(self, new_position):
+
         old_position = self.position
         self.position = new_position
         self.has_moved = True
@@ -357,6 +359,8 @@ class Node:
 
             # Update beam geometry
             beam.uncut_polyline = beam.get_uncut_polyline()
+            beam.cut_polyline = beam.uncut_polyline
+            beam.is_new = True
 
             # Update beam centroid and plane
             beam.centroid = rg.AreaMassProperties.Compute(beam.uncut_polyline.ToNurbsCurve()).Centroid
@@ -450,7 +454,7 @@ class Node:
         organized_beams = self.organize_beams()
 
         for i, beam1 in enumerate(organized_beams):
-            
+
             beam2 = organized_beams[(i+1) % len(organized_beams)]
                 
             # cut beam1
@@ -458,14 +462,16 @@ class Node:
                 t = "pol"
             else:
                 t = "line"
-            
+
             if beam2.is_new and organized_beams[(i+2)%len(organized_beams)].fabricated:
                 beam2 = organized_beams[(i+2)%len(organized_beams)]
+            
+            
             beam1.cut_with_beam( beam2, t)
 
 
             # cut beam2
-            if beam1.fabricated and beam2.width > beam1.reference_width:
+            if beam1.fabricated and beam2.width > beam2.reference_width:
                 t = "pol"
             else:
                 t = "line"
