@@ -1,9 +1,13 @@
-import cv2
-import numpy as np
 from typing import List, Tuple
 import json
+import cv2
+import numpy as np
 from roslibpy import Message
 from roslibpy import Topic
+from compas_fab.backends import RosClient
+import os
+
+from woodPiece import WoodPiece
 
 def crop_frame(frame: np.ndarray, coords: List[Tuple[int, int]]) -> np.ndarray:
 
@@ -184,6 +188,8 @@ def process_video(video_path: str, crop_coords: List[Tuple[int, int]]):
             
             result = cropped.copy()
             
+            wood_pieces = []
+            
             # Draw contours and dimensions
             for cnt in wood_contours:
                 cv2.drawContours(result, [cnt], -1, (0, 255, 0), 2)
@@ -199,8 +205,13 @@ def process_video(video_path: str, crop_coords: List[Tuple[int, int]]):
                     width_cm, height_cm = height_cm, width_cm
                 
                 x, y, w, h = cv2.boundingRect(cnt)
-                text_x = x + w//2  # center of bounding box
-                text_y = y + h//2  # center of bounding box
+                center = (x + w//2, y + h//2)
+                text_x = center[0]  # center of bounding box
+                text_y = center[1]  # center of bounding box
+
+                # Create wood piece
+                wood_piece = WoodPiece(box.tolist(), center, width_cm, height_cm)
+                wood_pieces.append(wood_piece)
                 
                 dimensions_text = f"{width_cm:.1f} x {height_cm:.1f} cm"
                 
@@ -224,10 +235,21 @@ def process_video(video_path: str, crop_coords: List[Tuple[int, int]]):
         
             # Save result
             # out.write(result)
+            current_file = os.path.abspath(__file__)
+            base_dir = base_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(current_file))))
+            json_output_path = os.path.join(base_dir, "json", "woodpieces.json")
 
-            message_data = json.dumps(woodPieces)
+            if wood_pieces:
+                with open(json_output_path, 'w') as json_file:
+                    json.dump([wp.to_dict() for wp in wood_pieces], json_file, indent=4)
+                print(f"Exported {len(wood_pieces)} wood pieces to {json_output_path}")
+            else:
+                print("No wood pieces detected, skipping JSON export.")
+    
+
+            message_data = json.dumps([wp.to_dict() for wp in wood_pieces])
             talker.publish(Message({'data': message_data}))
-            print('Sending message %s' % message_data)
+            print('Sending message:', message_data)
 
             talker.unadvertise()
 
@@ -249,5 +271,7 @@ if __name__ == "__main__":
         (1201, 1379)
     ]
     
-    video_path = "overhead4KBlackBG.mp4"
+    video_path = r"C:\Users\skevaki\OneDrive - epfl.ch\Documents - ENAC-CRCL\04_Projects\020_TFT\999_PhotoVideo\0403_testVideos\overhead4KBlackBG.mp4"
+
+
     process_video(video_path, crop_coords)
